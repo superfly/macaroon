@@ -174,7 +174,7 @@ func TestIfPresent(t *testing.T) {
 	no(ErrUnauthorizedForResource, &testAccess{parentResource: ptr(uint64(987)), childResource: ptr(uint64(234)), action: ActionRead}) // bad parent
 
 	// hit if block (success)
-	yes(&testAccess{parentResource: ptr(uint64(123)), childResource: ptr(uint64(234)), action: ActionRead})
+	yes(&testAccess{parentResource: ptr(uint64(123)), childResource: ptr(uint64(234)), action: ActionRead | ActionDelete})
 
 	// hit if block (failure)
 	no(ErrUnauthorizedForResource, &testAccess{parentResource: ptr(uint64(123)), childResource: ptr(uint64(876)), action: ActionRead})  // wrong child

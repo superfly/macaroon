@@ -49,16 +49,20 @@ func (c *IfPresent) CaveatType() CaveatType {
 }
 
 func (c *IfPresent) Prohibits(f Access) error {
-	var merr error
+	var (
+		merr     error
+		ifBranch bool
+	)
 
 	for _, cc := range c.Ifs.Caveats {
 		// set merr if any of the `Ifs` returns nil or a non-errResourceUnspecified error
 		if cErr := cc.Prohibits(f); !errors.Is(cErr, ErrResourceUnspecified) {
 			merr = appendErrs(merr, cErr)
+			ifBranch = true
 		}
 	}
 
-	if merr == nil && !f.GetAction().IsSubsetOf(c.Else) {
+	if !ifBranch && !f.GetAction().IsSubsetOf(c.Else) {
 		return fmt.Errorf("%w access %s (%s not allowed)", ErrUnauthorizedForAction, f.GetAction(), f.GetAction().Remove(c.Else))
 	}
 
