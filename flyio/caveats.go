@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/superfly/macaroon"
-	"github.com/superfly/macaroon/resource_set"
+	"github.com/superfly/macaroon/resset"
 )
 
 const (
@@ -129,7 +129,7 @@ func (c *ConfineUser) Prohibits(macaroon.Access) error {
 // only with the listed apps, regardless of what the token says. Additional Apps can be added,
 // but they can only narrow, not expand, which apps (or access levels) can be reached from the token.
 type Apps struct {
-	Apps           resource_set.ResourceSet[uint64] `json:"apps"`
+	Apps           resset.ResourceSet[uint64] `json:"apps"`
 	notAttestation `msgpack:"-" json:"-"`
 }
 
@@ -150,7 +150,7 @@ func (c *Apps) Prohibits(a macaroon.Access) error {
 }
 
 type Volumes struct {
-	Volumes        resource_set.ResourceSet[string] `json:"volumes"`
+	Volumes        resset.ResourceSet[string] `json:"volumes"`
 	notAttestation `msgpack:"-" json:"-"`
 }
 
@@ -171,7 +171,7 @@ func (c *Volumes) Prohibits(a macaroon.Access) error {
 }
 
 type Machines struct {
-	Machines       resource_set.ResourceSet[string] `json:"machines"`
+	Machines       resset.ResourceSet[string] `json:"machines"`
 	notAttestation `msgpack:"-" json:"-"`
 }
 
@@ -192,7 +192,7 @@ func (c *Machines) Prohibits(a macaroon.Access) error {
 }
 
 type MachineFeatureSet struct {
-	Features       resource_set.ResourceSet[string] `json:"features"`
+	Features       resset.ResourceSet[string] `json:"features"`
 	notAttestation `msgpack:"-" json:"-"`
 }
 
@@ -218,7 +218,7 @@ func (c *MachineFeatureSet) Prohibits(a macaroon.Access) error {
 // individually with a Networks caveat. The feature name is free-form and more
 // should be addded as it makes sense.
 type FeatureSet struct {
-	Features       resource_set.ResourceSet[string] `json:"features"`
+	Features       resset.ResourceSet[string] `json:"features"`
 	notAttestation `msgpack:"-" json:"-"`
 }
 
@@ -300,7 +300,7 @@ func (c *IsUser) Prohibits(a macaroon.Access) error {
 
 // Clusters is a set of Cluster caveats, with their RWX access levels.
 type Clusters struct {
-	Clusters       resource_set.ResourceSet[string] `json:"clusters"`
+	Clusters       resset.ResourceSet[string] `json:"clusters"`
 	notAttestation `msgpack:"-" json:"-"`
 }
 

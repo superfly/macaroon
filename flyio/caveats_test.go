@@ -6,23 +6,23 @@ import (
 
 	"github.com/alecthomas/assert/v2"
 	"github.com/superfly/macaroon"
-	"github.com/superfly/macaroon/resource_set"
+	"github.com/superfly/macaroon/resset"
 )
 
 func TestCaveatSerialization(t *testing.T) {
 	cs := macaroon.NewCaveatSet(
 		&Organization{ID: 123, Mask: macaroon.ActionRead},
-		&Apps{Apps: resource_set.ResourceSet[uint64]{123: macaroon.ActionRead}},
-		&FeatureSet{Features: resource_set.New(macaroon.ActionRead, "123")},
-		&Volumes{Volumes: resource_set.New(macaroon.ActionRead, "123")},
-		&Machines{Machines: resource_set.New(macaroon.ActionRead, "123")},
+		&Apps{Apps: resset.ResourceSet[uint64]{123: macaroon.ActionRead}},
+		&FeatureSet{Features: resset.New(macaroon.ActionRead, "123")},
+		&Volumes{Volumes: resset.New(macaroon.ActionRead, "123")},
+		&Machines{Machines: resset.New(macaroon.ActionRead, "123")},
 		&Mutations{Mutations: []string{"123"}},
 		&ConfineUser{ID: 123},
 		&ConfineOrganization{ID: 123},
 		&IsUser{ID: 123},
-		&MachineFeatureSet{Features: resource_set.New(macaroon.ActionRead, "123")},
+		&MachineFeatureSet{Features: resset.New(macaroon.ActionRead, "123")},
 		&FromMachine{ID: "asdf"},
-		&Clusters{Clusters: resource_set.New(macaroon.ActionRead, "123")},
+		&Clusters{Clusters: resset.New(macaroon.ActionRead, "123")},
 	)
 
 	b, err := json.Marshal(cs)

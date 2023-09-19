@@ -27,13 +27,6 @@ import (
 	msgpack "github.com/vmihailenco/msgpack/v5"
 )
 
-const (
-	// well-known locations
-	LocationFlyioPermission     = "https://api.fly.io/v1"
-	LocationFlyioAuthentication = "https://api.fly.io/aaa/v1"
-	LocationFlyioSecrets        = "https://api.fly.io/secrets/v1"
-)
-
 // Macaroon is the fully-functioning internal representation of a
 // token --- you've got a Macaroon either because you're constructing
 // a new token yourself, or because you've parsed a token from the

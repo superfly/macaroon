@@ -1,4 +1,4 @@
-package resource_set
+package resset
 
 import (
 	"bytes"
