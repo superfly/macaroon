@@ -51,7 +51,11 @@ type Organization struct {
 	Mask resset.Action `json:"mask"`
 }
 
-func init()                                             { macaroon.RegisterCaveatType(&Organization{}) }
+func init() {
+	macaroon.RegisterCaveatType(&Organization{})
+	macaroon.RegisterCaveatJSONAlias(CavOrganization, "DeprecatedOrganization")
+}
+
 func (c *Organization) CaveatType() macaroon.CaveatType { return CavOrganization }
 func (c *Organization) Name() string                    { return "Organization" }
 
@@ -108,7 +112,11 @@ type Apps struct {
 	Apps resset.ResourceSet[uint64] `json:"apps"`
 }
 
-func init()                                     { macaroon.RegisterCaveatType(&Apps{}) }
+func init() {
+	macaroon.RegisterCaveatType(&Apps{})
+	macaroon.RegisterCaveatJSONAlias(CavApps, "DeprecatedApps")
+}
+
 func (c *Apps) CaveatType() macaroon.CaveatType { return CavApps }
 func (c *Apps) Name() string                    { return "Apps" }
 
