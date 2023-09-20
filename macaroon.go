@@ -1,17 +1,92 @@
-// package macaroon defines Fly.io's Macaroon token format.
+// Package macaroon defines Fly.io's Macaroon token format.
 //
-// Tokens are created with [New], and refined with [Add] and [Add3P] to
-// add conditions, called caveats. Their signature is updated as caveats
-// are added. They're serialized with [Encode]
+// A [Macaroon] is a flexible bearer token based on the idea of
+// "caveats". A caveat limits what a Macaroon can do. A blank Macaroon
+// might represent an all-access credential; a caveat layered onto that Macaroon
+// might transform it into a read-only credential; a further caveat might
+// create a credential that can only read, and only to a particular file.
 //
-// Serialized tokens are parsed with [Decode], to get a [Macaroon]. To do
-// real things with it, [Verify] it to receive the set of usable caveats.
+// The basic laws of Macaroons:
 //
-// Serialized tokens can also be scanned with [DischargeMacaroon] to find
-// caveats that need third-party discharges.
+//   - Anybody can add a caveat onto a Macaroon, even if they didn't
+//     originally issue it.
+//   - A caveat can only further restrict a Macaroon's access; adding
+//     a caveat can't even increase access.
+//   - Given a Macaroon with a set of caveats (A, B, C), it's
+//     cryptographically impossible to remove any caveat, to
+//     produce an (A, B) Macaroon or a (B, C).
 //
-// Once fully parsed, a service using these tokens calls [Validate]
-// to check the caveats.
+// An ordinary caveat is checked by looking at the request and the caveat
+// and seeing if they match up. For instance, a Macaroon with an
+// `Operation=read` caveat can be checked by looking to see if the request
+// it accompanies is trying to write. Simple stuff.
+//
+// A "third party (3P)" caveat works differently. 3P caveats demand
+// that some other named system validate the request.
+//
+// Users extract a little ticket from the 3P caveat (that ticket
+// is called a "CID") and hands it to the third party, along with
+// anything else the third party might want. That third party resolves
+// the caveat by generating a "discharge Macaroon", which is a whole
+// 'nother token, tied cryptographically to the original 3P
+// caveat. The user then presents both the original Macaroon and the
+// discharge Macaroon with their request.
+//
+// For instance: most Fly.io Macaroons require a logged-in user (usually
+// a member of a particular organization). We express that with a 3P
+// caveat pointing to our authentication endpoint. That endpoint checks
+// to see who you're logged in as, and produces an appropriate discharge,
+// which accompanies the original Macaroon and (in effect) attests to
+// you being logged in.
+//
+// # Cryptography
+//
+// All the cryptography in Macaroons is symmetric; there are no public
+// keys.
+//
+// We use SHA256 as our hash, and HMAC-SHA256 as our authenticator.
+//
+// We use ChaCha20/Poly1305 as the AEAD for third-party caveats.
+//
+// # Fly Macaroon Format
+//
+// Our Macaroons are simple structs encoded with [MessagePack]. We use
+// a binary encoding both for performance and to to encode deterministically,
+// for cryptography. MessagePack is extraordinarily simple and you can reason
+// about this code as if simply used JSON.
+//
+// A typical Fly.io request from a user will require multiple tokens;
+// the original "root" token, which says what you're allowed to do, and
+// tokens to validate 3P caveats (usually at least an authentication
+// token).
+//
+// To represent that bundle of tokens, we define a `FlyV1` HTTP
+// `Authorization` header scheme, which is simply a comma-separated
+// set of Base64'd Macaroons.
+//
+// # Internal Deployment
+//
+// See the `flyio` package for more details.
+//
+// # Basic Library Usage
+//
+//   - Create a token with [New].
+//
+//   - Add caveats ("attenuating" it) with [Macaroon.Add].
+//
+//   - Sign and encode the token with [Macaroon.Encode].
+//
+//   - Decode a binary token with [Decode].
+//
+//   - Verify the signatures on a token with [Macaroon.Verify]. Note that
+//     the whole token has not been checked at this point!
+//
+//   - Check the caveats (the result of [Macaroon.Verify]) with [CaveatSet.Validate].
+//
+// [Macaroon]: https://storage.googleapis.com/pub-tools-public-publication-data/pdf/41892.pdf
+// [MessagePack]: https://msgpack.org/index.html
+//
+// [API Tokens]: https://fly.io/blog/api-tokens-a-tedious-survey/
 package macaroon
 
 import (
@@ -31,9 +106,17 @@ import (
 // token --- you've got a Macaroon either because you're constructing
 // a new token yourself, or because you've parsed a token from the
 // wire.
+//
+// Some fields in these structures are JSON-encoded because we use
+// a JSON representation of Macaroons in IPC with our Rails API, which
+// doesn't have a good FFI to talk to Go.
 type Macaroon struct {
-	Nonce         Nonce     `json:"-"`
-	Location      string    `json:"location"`
+	Nonce    Nonce  `json:"-"`
+	Location string `json:"location"`
+
+	// Retrieve caveats from a Macaroon you don't trust
+	// by calling [Macaroon.Verify], not by poking into
+	// the struct.
 	UnsafeCaveats CaveatSet `json:"caveats"`
 	Tail          []byte    `json:"-"`
 
@@ -78,8 +161,19 @@ func newMacaroon(kid []byte, loc string, key SigningKey, isProof bool) (*Macaroo
 	}, nil
 }
 
-// Decode parses a token off the wire; To get usable caveats, call
-// Verify.
+// Decode parses a token off the wire; to get usable caveats. There
+// are two things you can do with a freshly-decoded Macaroon:
+//
+//   - You can verify the signature and recover the caveats with [Macaroon.Verify]
+//
+//   - You can add additional caveats to the Macaroon with [Macaroon.Add], and then
+//     call [Macaroon.Encode] to re-encode it (this is called "attenuation", and
+//     it's what you'd do to take a read-write token and make it a read-only
+//     token, for instance.
+//
+// Note that calling [Macaroon.Verify] requires a secret key, but
+// [Macaroon.Add] and [Macaroon.Encode] does not. That's a Macaroon
+// magic power.
 func Decode(buf []byte) (*Macaroon, error) {
 	m := &Macaroon{}
 	if err := msgpack.Unmarshal(buf, m); err != nil {
@@ -89,7 +183,9 @@ func Decode(buf []byte) (*Macaroon, error) {
 	return m, nil
 }
 
-// DecodeNonce parses just the nonce from an encoded macaroon.
+// DecodeNonce parses just the [Nonce] from an encoded [Macaroon].
+// You'd want to do this, for instance, to look metadata up by the
+// keyid of the [Macaroon], which is encoded in the [Nonce].
 func DecodeNonce(buf []byte) (Nonce, error) {
 	var (
 		nonceOnly = struct{ Nonce Nonce }{}
@@ -189,10 +285,20 @@ func (m *Macaroon) Encode() ([]byte, error) {
 	return encode(m)
 }
 
-// Verify checks the signature on a Decode()'ed Macaroon and returns the
+// Verify checks the signature on a [Macaroon.Decode] 'ed Macaroon and returns the
 // the set of caveats that require validation against the user's request.
-// This excludes caveats that have already been validated (e.g. 3P caveats
-// and others relating to the signing of the Macaroon).
+//
+// Verify is the primary way you recover caveats from a Macaroon. Note that
+// the caveats returned are the semantically meaningful subset of caveats that
+// might need to be checked against the request. Third-party caveats are
+// validated implicitly by checking sgnatures, and aren't returned by
+// Verify.
+//
+// (A fun wrinkle, though: a 3P discharge token can add additional ordinary caveats
+// to a token; you can, for instance, discharge our authentication token with
+// a token that says "yes, this person is logged in as bob@victim.com, but
+// only allow this request to perform reads, not writes"). Those added
+// ordinary caveats WILL be returned from Verify.
 func (m *Macaroon) Verify(k SigningKey, discharges [][]byte, trusted3Ps map[string]EncryptionKey) (*CaveatSet, error) {
 	return m.verify(k, discharges, nil, true, trusted3Ps)
 }
@@ -334,8 +440,16 @@ func finalizeSignature(tail []byte) []byte {
 // digest length, so it seems reasonable to do here also.
 const bindingIdLength = sha256.Size / 2
 
-// Bind binds this (discharge) token to the specified root token (parent) with
-// a BindToParentToken caveat.
+// Bind cryptographically binds a discharge token to the "parent"
+// token it's meant to accompany. This is a convenience method
+// that takes a raw unparsed parent token as an argument.
+//
+// Discharge tokens are generated by third-party services (like
+// our authentication service, or your Slack bot) to satisfy a
+// third-party caveat. Users present both the original and the
+// discharge token when they make requests. Discharge tokens
+// must be bound when they're sent; doing so prevents Discharge
+// tokens from being replayed in some other context.
 func (m *Macaroon) Bind(parent []byte) error {
 	pm, err := Decode(parent)
 	if err != nil {
@@ -345,6 +459,8 @@ func (m *Macaroon) Bind(parent []byte) error {
 	return m.BindToParentMacaroon(pm)
 }
 
+// See [Macaroon.Bind]; this is that function, but it takes a
+// parsed Macaroon.
 func (m *Macaroon) BindToParentMacaroon(parent *Macaroon) error {
 	bid := digest(parent.Tail)[0:bindingIdLength]
 	cav := BindToParentToken(bid)
@@ -396,10 +512,21 @@ func (m *Macaroon) Add3P(ka EncryptionKey, loc string, cs ...Caveat) error {
 }
 
 // ThirdPartyCIDs extracts the encrypted CIDs from a token's third party
-// caveats. Each is identified by the location of the third party. The CID can
-// then be exchanged with the third party for a discharge token. Third party
-// caveats are checked against existing discharge tokens and discharged caveats
-// are omitted from the results.
+// caveats.
+//
+// The CID of a third-party caveat is a little ticket embedded in the
+// caveat that is readable by the third-party service for which it's
+// intended. That service uses the CID to generate a compatible discharge
+// token to satisfy the caveat.
+//
+// Macaroon services of all types are identified by their "location",
+// which in our scheme is always a URL. ThirdPartyCIDs returns a map
+// of location to CID. In a perfect world, you could iterate over this
+// map hitting each URL and passing it the associated CID, collecting
+// all the discharge tokens you need for the request (it is never that
+// simple, though).
+//
+// Already-discharged caveats are excluded from the results.
 func (m *Macaroon) ThirdPartyCIDs(existingDischarges ...[]byte) (map[string][]byte, error) {
 	ret := map[string][]byte{}
 	dischargeCIDs := make(map[string]struct{}, len(existingDischarges))
@@ -423,8 +550,8 @@ func (m *Macaroon) ThirdPartyCIDs(existingDischarges ...[]byte) (map[string][]by
 	return ret, nil
 }
 
-// Checks the macaroon for a third party caveat for the specified location.
-// Returns the caveat's encrypted CID, if found.
+// ThirdPartyCID returns the CID (see [Macaron.ThirdPartyCIDs]) associated
+// with a URL location, if possible.
 func (m *Macaroon) ThirdPartyCID(location string, existingDischarges ...[]byte) ([]byte, error) {
 	cids, err := m.ThirdPartyCIDs(existingDischarges...)
 	if err != nil {
