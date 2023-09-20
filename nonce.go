@@ -18,7 +18,12 @@ type nonceV1Fields struct {
 	Proof bool `json:"proof"`
 }
 
-// Nonce encodes the key ID that signed the macaroon as well as some randomness
+// A Nonce in cryptography is a random number that is only used
+// once. A Nonce on a [Macaroon] is a blob of data that encodes,
+// most impotantly, the "key ID" (KID) of the token; the KID is an
+// opaque value that you, the library caller, provide when you create
+// a token; it's the database key you use to tie the Macaroon to your
+// database.
 type Nonce struct {
 	nonceV0Fields
 	nonceV1Fields
@@ -45,7 +50,7 @@ func (n *Nonce) UUID() uuid.UUID {
 	return rndUUID
 }
 
-// DecodeMsgpack implements msgpack.CustomDecoder
+// DecodeMsgpack implements [msgpack.CustomDecoder]
 func (n *Nonce) DecodeMsgpack(d *msgpack.Decoder) error {
 	// we encode structs as arrays, so adding new fields is tricky...
 	// The Closed field was a later addition, so we handle 2 or 3 fields.
@@ -79,7 +84,7 @@ func (n *Nonce) DecodeMsgpack(d *msgpack.Decoder) error {
 	return nil
 }
 
-// DecodeMsgpack implements msgpack.CustomDecoder
+// DecodeMsgpack implements [msgpack.CustomDecoder]
 func (n *Nonce) EncodeMsgpack(e *msgpack.Encoder) error {
 	var fields []any
 
