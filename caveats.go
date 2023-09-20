@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/superfly/macaroon/internal/merr"
 )
 
 // Caveat3P is a requirement that the token be presented along with a 3P discharge token.
@@ -50,14 +52,14 @@ func (c *IfPresent) CaveatType() CaveatType {
 
 func (c *IfPresent) Prohibits(f Access) error {
 	var (
-		merr     error
+		err      error
 		ifBranch bool
 	)
 
 	for _, cc := range c.Ifs.Caveats {
 		// set merr if any of the `Ifs` returns nil or a non-errResourceUnspecified error
 		if cErr := cc.Prohibits(f); !errors.Is(cErr, ErrResourceUnspecified) {
-			merr = appendErrs(merr, cErr)
+			err = merr.Append(err, cErr)
 			ifBranch = true
 		}
 	}
@@ -66,7 +68,7 @@ func (c *IfPresent) Prohibits(f Access) error {
 		return fmt.Errorf("%w access %s (%s not allowed)", ErrUnauthorizedForAction, f.GetAction(), f.GetAction().Remove(c.Else))
 	}
 
-	return merr
+	return err
 }
 
 func (c *IfPresent) IsAttestation() bool { return false }
