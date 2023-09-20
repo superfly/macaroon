@@ -61,10 +61,10 @@ func (c *Organization) Prohibits(a macaroon.Access) error {
 	switch {
 	case !isFlyioAccess:
 		return macaroon.ErrInvalidAccess
-	case f.OrgID == 0:
+	case f.DeprecatedOrgID == nil:
 		return fmt.Errorf("%w org", resset.ErrResourceUnspecified)
-	case c.ID != f.OrgID:
-		return fmt.Errorf("%w org %d, only %d", resset.ErrUnauthorizedForResource, f.OrgID, c.ID)
+	case c.ID != *f.DeprecatedOrgID:
+		return fmt.Errorf("%w org %d, only %d", resset.ErrUnauthorizedForResource, f.DeprecatedOrgID, c.ID)
 	case !f.Action.IsSubsetOf(c.Mask):
 		return fmt.Errorf("%w access %s (%s not allowed)", resset.ErrUnauthorizedForAction, f.Action, f.Action.Remove(c.Mask))
 	default:
@@ -117,7 +117,7 @@ func (c *Apps) Prohibits(a macaroon.Access) error {
 	if !isFlyioAccess {
 		return macaroon.ErrInvalidAccess
 	}
-	return c.Apps.Prohibits(f.AppID, f.Action)
+	return c.Apps.Prohibits(f.DeprecatedAppID, f.Action)
 }
 
 type Volumes struct {

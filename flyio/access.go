@@ -2,6 +2,7 @@ package flyio
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/superfly/macaroon"
@@ -9,16 +10,20 @@ import (
 )
 
 type Access struct {
-	OrgID          uint64        `json:"orgid"`
-	AppID          *uint64       `json:"appid"`
-	Action         resset.Action `json:"action"`
-	Feature        *string       `json:"feature"`
-	Volume         *string       `json:"volume"`
-	Machine        *string       `json:"machine"`
-	MachineFeature *string       `json:"machine_feature"`
-	Mutation       *string       `json:"mutation"`
-	SourceMachine  *string       `json:"sourceMachine"`
-	Cluster        *string       `json:"cluster"`
+	OrgSlug        *string       `json:"org_slug,omitempty"`
+	AppID          *string       `json:"apphid,omitempty"`
+	Action         resset.Action `json:"action,omitempty"`
+	Feature        *string       `json:"feature,omitempty"`
+	Volume         *string       `json:"volume,omitempty"`
+	Machine        *string       `json:"machine,omitempty"`
+	MachineFeature *string       `json:"machine_feature,omitempty"`
+	Mutation       *string       `json:"mutation,omitempty"`
+	SourceMachine  *string       `json:"sourceMachine,omitempty"`
+	Cluster        *string       `json:"cluster,omitempty"`
+
+	// deprecated
+	DeprecatedOrgID *uint64 `json:"orgid,omitempty"`
+	DeprecatedAppID *uint64 `json:"appid,omitempty"`
 }
 
 var (
@@ -43,18 +48,29 @@ func (a *Access) Now() time.Time {
 // This ensure that a Access represents a single action taken on a single object.
 func (f *Access) Validate() error {
 	// root-level resources = org
-	if f.OrgID == 0 {
+	if f.DeprecatedOrgID == nil && f.OrgSlug == nil {
 		return fmt.Errorf("%w org", resset.ErrResourceUnspecified)
 	}
 
-	// org-level resources = apps, features
-	if f.AppID != nil && f.Feature != nil {
-		return fmt.Errorf("%w: app, feature", macaroon.ErrResourcesMutuallyExclusive)
+	hasApp := f.DeprecatedAppID != nil || f.AppID != nil
+
+	var orgLevelResources []string
+	if hasApp {
+		orgLevelResources = append(orgLevelResources, "app")
+	}
+	if f.Feature != nil {
+		orgLevelResources = append(orgLevelResources, "org-feature")
+	}
+	if f.Cluster != nil {
+		orgLevelResources = append(orgLevelResources, "litefs cluster")
+	}
+	if len(orgLevelResources) > 1 {
+		return fmt.Errorf("%w: %s", macaroon.ErrResourcesMutuallyExclusive, strings.Join(orgLevelResources, ", "))
 	}
 
 	// app-level resources = machines, volumes
 	if f.Machine != nil || f.Volume != nil {
-		if f.AppID == nil {
+		if !hasApp {
 			return fmt.Errorf("%w app", resset.ErrResourceUnspecified)
 		}
 
