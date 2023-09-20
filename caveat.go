@@ -13,23 +13,23 @@ import (
 type CaveatType uint64
 
 const (
-	_ CaveatType = iota // fly.io reserved
-	_                   // fly.io reserved
-	_                   // fly.io reserved
-	_                   // fly.io reserved
+	CavFlyioOrganization CaveatType = iota
+	_                               // deprecated
+	CavFlyioVolumes
+	CavFlyioApps
 	CavValidityWindow
-	_ // fly.io reserved
-	_ // fly.io reserved
-	_ // fly.io reserved
-	_ // fly.io reserved
-	_ // fly.io reserved
-	_ // fly.io reserved
+	CavFlyioFeatureSet
+	CavFlyioMutations
+	CavFlyioMachines
+	CavFlyioConfineUser
+	CavFlyioConfineOrganization
+	CavFlyioIsUser
 	Cav3P
 	CavBindToParentToken
 	CavIfPresent
-	_ // fly.io reserved
-	_ // fly.io reserved
-	_ // fly.io reserved
+	CavFlyioMachineFeatureSet
+	CavFlyioFromMachineSource
+	CavFlyioClusters
 	_ // fly.io reserved
 	_ // fly.io reserved
 

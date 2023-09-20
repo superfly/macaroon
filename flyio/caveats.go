@@ -8,18 +8,18 @@ import (
 )
 
 const (
-	CavOrganization        = 0
-	CavVolumes             = 2
-	CavApps                = 3
-	CavFeatureSet          = 5
-	CavMutations           = 6
-	CavMachines            = 7
-	CavConfineUser         = 8
-	CavConfineOrganization = 9
-	CavIsUser              = 10
-	CavMachineFeatureSet   = 14
-	CavFromMachineSource   = 15
-	CavClusters            = 16
+	CavOrganization        = macaroon.CavFlyioOrganization
+	CavVolumes             = macaroon.CavFlyioVolumes
+	CavApps                = macaroon.CavFlyioApps
+	CavFeatureSet          = macaroon.CavFlyioFeatureSet
+	CavMutations           = macaroon.CavFlyioMutations
+	CavMachines            = macaroon.CavFlyioMachines
+	CavConfineUser         = macaroon.CavFlyioConfineUser
+	CavConfineOrganization = macaroon.CavFlyioConfineOrganization
+	CavIsUser              = macaroon.CavFlyioIsUser
+	CavMachineFeatureSet   = macaroon.CavFlyioMachineFeatureSet
+	CavFromMachineSource   = macaroon.CavFlyioFromMachineSource
+	CavClusters            = macaroon.CavFlyioClusters
 )
 
 type FromMachine struct {
