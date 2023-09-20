@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/superfly/macaroon"
+	"github.com/superfly/macaroon/resset"
 )
 
 type Access struct {
@@ -19,6 +20,11 @@ type Access struct {
 	SourceMachine  *string         `json:"sourceMachine"`
 	Cluster        *string         `json:"cluster"`
 }
+
+var (
+	_ macaroon.Access = (*Access)(nil)
+	_ resset.Access   = (*Access)(nil)
+)
 
 func (a *Access) GetAction() macaroon.Action {
 	return a.Action

@@ -1,11 +1,8 @@
 package macaroon
 
 import (
-	"errors"
 	"fmt"
 	"time"
-
-	"github.com/superfly/macaroon/internal/merr"
 )
 
 // Caveat3P is a requirement that the token be presented along with a 3P discharge token.
@@ -31,47 +28,6 @@ func (c *Caveat3P) Prohibits(f Access) error {
 }
 
 func (c *Caveat3P) IsAttestation() bool { return false }
-
-// IfPresent attempts to apply the specified `Ifs` caveats if the relevant
-// resources are specified. If none of the relevant resources are specified,
-// the `Else` caveats are applied.
-//
-// This is only meaningful to use with "resource" caveats: org, app, feature,
-// volume, machine. Notably, it explicitly doesn't work with the Mutations
-// caveat.
-type IfPresent struct {
-	Ifs  *CaveatSet `json:"ifs"`
-	Else Action     `json:"else"`
-}
-
-func init() { RegisterCaveatType("IfPresent", CavIfPresent, &IfPresent{}) }
-
-func (c *IfPresent) CaveatType() CaveatType {
-	return CavIfPresent
-}
-
-func (c *IfPresent) Prohibits(f Access) error {
-	var (
-		err      error
-		ifBranch bool
-	)
-
-	for _, cc := range c.Ifs.Caveats {
-		// set merr if any of the `Ifs` returns nil or a non-errResourceUnspecified error
-		if cErr := cc.Prohibits(f); !errors.Is(cErr, ErrResourceUnspecified) {
-			err = merr.Append(err, cErr)
-			ifBranch = true
-		}
-	}
-
-	if !ifBranch && !f.GetAction().IsSubsetOf(c.Else) {
-		return fmt.Errorf("%w access %s (%s not allowed)", ErrUnauthorizedForAction, f.GetAction(), f.GetAction().Remove(c.Else))
-	}
-
-	return err
-}
-
-func (c *IfPresent) IsAttestation() bool { return false }
 
 // ValidityWindow establishes the window of time the token is valid for.
 type ValidityWindow struct {

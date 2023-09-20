@@ -27,7 +27,6 @@ func TestCaveatSerialization(t *testing.T) {
 		&ValidityWindow{NotBefore: 123, NotAfter: 234},
 		&Caveat3P{Location: "123", VID: []byte("123"), CID: []byte("123")},
 		&BindToParentToken{1, 2, 3},
-		&IfPresent{Ifs: NewCaveatSet(&ValidityWindow{NotBefore: 123, NotAfter: 234}), Else: ActionDelete},
 	)
 
 	b, err := json.Marshal(cs)

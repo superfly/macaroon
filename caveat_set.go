@@ -77,8 +77,8 @@ func GetCaveats[T Caveat](c *CaveatSet) (ret []T) {
 			ret = append(ret, typed)
 		}
 
-		if typed, ok := cav.(*IfPresent); ok {
-			ret = append(ret, GetCaveats[T](typed.Ifs)...)
+		if wc, isWrapper := cav.(WrapperCaveat); isWrapper {
+			ret = append(ret, GetCaveats[T](wc.Unwrap())...)
 		}
 	}
 	return ret
