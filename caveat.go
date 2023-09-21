@@ -63,6 +63,12 @@ type Caveat interface {
 	IsAttestation() bool
 }
 
+// WrapperCaveat should be implemented by caveats that wrap other caveats (eg.
+// resset.IfPresent).
+type WrapperCaveat interface {
+	Unwrap() *CaveatSet
+}
+
 var (
 	t2c = map[CaveatType]Caveat{}
 	s2t = map[string]CaveatType{}

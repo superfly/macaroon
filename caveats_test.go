@@ -1,7 +1,6 @@
 package macaroon
 
 import (
-	"errors"
 	"testing"
 	"time"
 
@@ -142,51 +141,6 @@ func TestSimple(t *testing.T) {
 			now:            time.Now().Add(-(100 * time.Minute)),
 		},
 	})
-}
-
-func TestIfPresent(t *testing.T) {
-	var (
-		cavs []Caveat
-	)
-
-	no := func(expected error, f Access) {
-		t.Helper()
-		err := NewCaveatSet(cavs...).Validate(f)
-		assert.Error(t, err)
-		assert.True(t, errors.Is(err, expected))
-	}
-
-	yes := func(f Access) {
-		t.Helper()
-		assert.NoError(t, NewCaveatSet(cavs...).Validate(f))
-	}
-
-	cavs = []Caveat{
-		cavParent(ActionRead|ActionWrite|ActionCreate|ActionDelete, 123),
-		&IfPresent{
-			Ifs:  NewCaveatSet(cavChild(ActionRead|ActionDelete|ActionControl, 234)),
-			Else: ActionRead | ActionCreate,
-		},
-	}
-
-	// failing before IfPresent
-	no(ErrResourceUnspecified, &testAccess{childResource: ptr(uint64(234)), action: ActionRead})                                       // no parent
-	no(ErrUnauthorizedForResource, &testAccess{parentResource: ptr(uint64(987)), childResource: ptr(uint64(234)), action: ActionRead}) // bad parent
-
-	// hit if block (success)
-	yes(&testAccess{parentResource: ptr(uint64(123)), childResource: ptr(uint64(234)), action: ActionRead | ActionDelete})
-
-	// hit if block (failure)
-	no(ErrUnauthorizedForResource, &testAccess{parentResource: ptr(uint64(123)), childResource: ptr(uint64(876)), action: ActionRead})  // wrong child
-	no(ErrUnauthorizedForAction, &testAccess{parentResource: ptr(uint64(123)), childResource: ptr(uint64(234)), action: ActionWrite})   // action disallowed by child caveat
-	no(ErrUnauthorizedForAction, &testAccess{parentResource: ptr(uint64(123)), childResource: ptr(uint64(234)), action: ActionControl}) // action disallowed by parent caveat
-
-	// hit else block (success)
-	yes(&testAccess{parentResource: ptr(uint64(123)), action: ActionRead | ActionCreate})
-
-	// hit else block (failure)
-	no(ErrUnauthorizedForAction, &testAccess{parentResource: ptr(uint64(123)), action: ActionWrite})   // action allowed earlier, disallowed by else
-	no(ErrUnauthorizedForAction, &testAccess{parentResource: ptr(uint64(123)), action: ActionControl}) // action only allowed by if
 }
 
 func ptr[T any](t T) *T {

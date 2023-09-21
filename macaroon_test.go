@@ -12,6 +12,12 @@ import (
 	msgpack "github.com/vmihailenco/msgpack/v5"
 )
 
+const (
+	ActionAll   = 99
+	ActionRead  = 1
+	ActionWrite = 2
+)
+
 func cavExpiry(d time.Duration) Caveat {
 	return &ValidityWindow{
 		NotBefore: time.Now().Unix(),
@@ -26,12 +32,12 @@ const (
 
 type testCaveatParentResource struct {
 	ID         uint64
-	Permission Action
+	Permission int
 }
 
 func init() { RegisterCaveatType("ParentResource", cavTestParentResource, &testCaveatParentResource{}) }
 
-func cavParent(permission Action, id uint64) Caveat {
+func cavParent(permission int, id uint64) Caveat {
 	return &testCaveatParentResource{id, permission}
 }
 
@@ -46,11 +52,11 @@ func (c *testCaveatParentResource) Prohibits(f Access) error {
 	case !isTestAccess:
 		return ErrInvalidAccess
 	case tf.parentResource == nil:
-		return ErrResourceUnspecified
+		return fmt.Errorf("%w: resource unspecified", ErrUnauthorized)
 	case *tf.parentResource != c.ID:
-		return fmt.Errorf("%w resource", ErrUnauthorizedForResource)
-	case !tf.action.IsSubsetOf(c.Permission):
-		return fmt.Errorf("%w action", ErrUnauthorizedForAction)
+		return fmt.Errorf("%w for resource", ErrUnauthorized)
+	case c.Permission != ActionAll && tf.action != c.Permission:
+		return fmt.Errorf("%w for action", ErrUnauthorized)
 	default:
 		return nil
 	}
@@ -62,12 +68,12 @@ func (c *testCaveatParentResource) IsAttestation() bool {
 
 type testCaveatChildResource struct {
 	ID         uint64
-	Permission Action
+	Permission int
 }
 
 func init() { RegisterCaveatType("ChildResource", cavTestChildResource, &testCaveatChildResource{}) }
 
-func cavChild(permission Action, id uint64) Caveat {
+func cavChild(permission int, id uint64) Caveat {
 	return &testCaveatChildResource{id, permission}
 }
 
@@ -82,11 +88,11 @@ func (c *testCaveatChildResource) Prohibits(f Access) error {
 	case !isTestAccess:
 		return ErrInvalidAccess
 	case tf.childResource == nil:
-		return ErrResourceUnspecified
+		return fmt.Errorf("%w: resource unspecified", ErrUnauthorized)
 	case *tf.childResource != c.ID:
-		return fmt.Errorf("%w resource", ErrUnauthorizedForResource)
-	case !tf.action.IsSubsetOf(c.Permission):
-		return fmt.Errorf("%w action", ErrUnauthorizedForAction)
+		return fmt.Errorf("%w for resource", ErrUnauthorized)
+	case c.Permission != ActionAll && tf.action != c.Permission:
+		return fmt.Errorf("%w for action", ErrUnauthorized)
 	default:
 		return nil
 	}
@@ -97,15 +103,13 @@ func (c *testCaveatChildResource) IsAttestation() bool {
 }
 
 type testAccess struct {
-	action         Action
+	action         int
 	parentResource *uint64
 	childResource  *uint64
 	now            time.Time
 }
 
 var _ Access = (*testAccess)(nil)
-
-func (f *testAccess) GetAction() Action { return f.action }
 
 func (f *testAccess) Now() time.Time {
 	if f.now.IsZero() {
@@ -116,7 +120,7 @@ func (f *testAccess) Now() time.Time {
 
 func (f *testAccess) Validate() error {
 	if f.childResource != nil && f.parentResource == nil {
-		return ErrResourceUnspecified
+		return ErrInvalidAccess
 	}
 	return nil
 }
@@ -516,7 +520,7 @@ func TestSimple3P(t *testing.T) {
 			m, err := New(kid, rootLoc, rootKey)
 			require.NoError(t, err)
 
-			require.NoError(t, m.Add(cavParent(ActionRead|ActionWrite, 1010)))
+			require.NoError(t, m.Add(cavParent(ActionRead, 1010)))
 			require.NoError(t, m.Add3P(ka, authLoc))
 			rBuf, err := m.Encode()
 			require.NoError(t, err)
@@ -542,7 +546,7 @@ func TestSimple3P(t *testing.T) {
 
 			err = verifiedCavs.Validate(&testAccess{
 				parentResource: ptr(uint64(1010)),
-				action:         ActionRead | ActionWrite,
+				action:         ActionRead,
 			})
 			require.NoError(t, err)
 		})

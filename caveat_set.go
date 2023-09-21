@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/superfly/macaroon/internal/merr"
 	msgpack "github.com/vmihailenco/msgpack/v5"
 )
 
@@ -42,30 +43,30 @@ func (c *CaveatSet) Validate(accesses ...Access) error {
 
 // Helper for validating concretely-typed accesses.
 func Validate[A Access](cs *CaveatSet, accesses ...A) error {
-	var merr error
+	var err error
 	for _, access := range accesses {
 		if ferr := access.Validate(); ferr != nil {
-			merr = appendErrs(merr, ferr)
+			err = merr.Append(err, ferr)
 			continue
 		}
 
-		merr = appendErrs(merr, cs.validateAccess(access))
+		err = merr.Append(err, cs.validateAccess(access))
 	}
 
-	return merr
+	return err
 }
 
 func (c *CaveatSet) validateAccess(access Access) error {
-	var merr error
+	var err error
 	for _, caveat := range c.Caveats {
 		if caveat.IsAttestation() {
 			continue
 		}
 
-		merr = appendErrs(merr, caveat.Prohibits(access))
+		err = merr.Append(err, caveat.Prohibits(access))
 	}
 
-	return merr
+	return err
 }
 
 // GetCaveats gets any caveats of type T, including those nested within
@@ -76,8 +77,8 @@ func GetCaveats[T Caveat](c *CaveatSet) (ret []T) {
 			ret = append(ret, typed)
 		}
 
-		if typed, ok := cav.(*IfPresent); ok {
-			ret = append(ret, GetCaveats[T](typed.Ifs)...)
+		if wc, isWrapper := cav.(WrapperCaveat); isWrapper {
+			ret = append(ret, GetCaveats[T](wc.Unwrap())...)
 		}
 	}
 	return ret
