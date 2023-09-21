@@ -84,7 +84,7 @@ func (n *Nonce) DecodeMsgpack(d *msgpack.Decoder) error {
 	return nil
 }
 
-// DecodeMsgpack implements [msgpack.CustomDecoder]
+// EncodeMsgpack implements [msgpack.CustomDecoder]
 func (n *Nonce) EncodeMsgpack(e *msgpack.Encoder) error {
 	var fields []any
 
