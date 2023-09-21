@@ -9,16 +9,16 @@ import (
 )
 
 type Access struct {
-	OrgID          uint64          `json:"orgid"`
-	AppID          *uint64         `json:"appid"`
-	Action         macaroon.Action `json:"action"`
-	Feature        *string         `json:"feature"`
-	Volume         *string         `json:"volume"`
-	Machine        *string         `json:"machine"`
-	MachineFeature *string         `json:"machine_feature"`
-	Mutation       *string         `json:"mutation"`
-	SourceMachine  *string         `json:"sourceMachine"`
-	Cluster        *string         `json:"cluster"`
+	OrgID          uint64        `json:"orgid"`
+	AppID          *uint64       `json:"appid"`
+	Action         resset.Action `json:"action"`
+	Feature        *string       `json:"feature"`
+	Volume         *string       `json:"volume"`
+	Machine        *string       `json:"machine"`
+	MachineFeature *string       `json:"machine_feature"`
+	Mutation       *string       `json:"mutation"`
+	SourceMachine  *string       `json:"sourceMachine"`
+	Cluster        *string       `json:"cluster"`
 }
 
 var (
@@ -26,7 +26,7 @@ var (
 	_ resset.Access   = (*Access)(nil)
 )
 
-func (a *Access) GetAction() macaroon.Action {
+func (a *Access) GetAction() resset.Action {
 	return a.Action
 }
 
@@ -44,7 +44,7 @@ func (a *Access) Now() time.Time {
 func (f *Access) Validate() error {
 	// root-level resources = org
 	if f.OrgID == 0 {
-		return fmt.Errorf("%w org", macaroon.ErrResourceUnspecified)
+		return fmt.Errorf("%w org", resset.ErrResourceUnspecified)
 	}
 
 	// org-level resources = apps, features
@@ -55,7 +55,7 @@ func (f *Access) Validate() error {
 	// app-level resources = machines, volumes
 	if f.Machine != nil || f.Volume != nil {
 		if f.AppID == nil {
-			return fmt.Errorf("%w app", macaroon.ErrResourceUnspecified)
+			return fmt.Errorf("%w app", resset.ErrResourceUnspecified)
 		}
 
 		if f.Machine != nil && f.Volume != nil {
@@ -65,7 +65,7 @@ func (f *Access) Validate() error {
 
 	// machine feature requires machine
 	if f.MachineFeature != nil && f.Machine == nil {
-		return fmt.Errorf("%w machine", macaroon.ErrResourceUnspecified)
+		return fmt.Errorf("%w machine", resset.ErrResourceUnspecified)
 	}
 
 	return nil

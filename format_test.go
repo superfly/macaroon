@@ -15,7 +15,7 @@ func TestTokenFormat(t *testing.T) {
 
 	m, err := New(kid, "root", key)
 	assert.NoError(t, err)
-	m.Add(cavParent(ActionRead|ActionWrite, 110))
+	m.Add(cavParent(ActionRead, 110))
 	m.Add3P(ka, "auth")
 	buf, err := m.Encode()
 	assert.NoError(t, err)

@@ -1,4 +1,4 @@
-package macaroon
+package resset
 
 import "encoding/json"
 

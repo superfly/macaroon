@@ -14,38 +14,38 @@ import (
 func TestResourceSet(t *testing.T) {
 	zero := ZeroID[string]()
 	rs := &ResourceSet[string]{
-		"foo": macaroon.ActionRead | macaroon.ActionWrite,
-		"bar": macaroon.ActionWrite,
+		"foo": ActionRead | ActionWrite,
+		"bar": ActionWrite,
 	}
 
-	assert.NoError(t, rs.Prohibits(ptr("foo"), macaroon.ActionRead|macaroon.ActionWrite))
-	assert.NoError(t, rs.Prohibits(ptr("bar"), macaroon.ActionWrite))
-	assert.True(t, errors.Is(rs.Prohibits(nil, macaroon.ActionWrite), macaroon.ErrResourceUnspecified))
-	assert.True(t, errors.Is(rs.Prohibits(ptr("baz"), macaroon.ActionWrite), macaroon.ErrUnauthorizedForResource))
-	assert.True(t, errors.Is(rs.Prohibits(ptr(zero), macaroon.ActionWrite), macaroon.ErrUnauthorizedForResource))
-	assert.True(t, errors.Is(rs.Prohibits(ptr("foo"), macaroon.ActionAll), macaroon.ErrUnauthorizedForAction))
+	assert.NoError(t, rs.Prohibits(ptr("foo"), ActionRead|ActionWrite))
+	assert.NoError(t, rs.Prohibits(ptr("bar"), ActionWrite))
+	assert.True(t, errors.Is(rs.Prohibits(nil, ActionWrite), ErrResourceUnspecified))
+	assert.True(t, errors.Is(rs.Prohibits(ptr("baz"), ActionWrite), ErrUnauthorizedForResource))
+	assert.True(t, errors.Is(rs.Prohibits(ptr(zero), ActionWrite), ErrUnauthorizedForResource))
+	assert.True(t, errors.Is(rs.Prohibits(ptr("foo"), ActionAll), ErrUnauthorizedForAction))
 }
 
 func TestZeroID(t *testing.T) {
 	zero := ZeroID[string]()
-	rs := &ResourceSet[string]{zero: macaroon.ActionRead}
+	rs := &ResourceSet[string]{zero: ActionRead}
 
-	assert.NoError(t, rs.Prohibits(ptr("foo"), macaroon.ActionRead))
-	assert.NoError(t, rs.Prohibits(ptr(zero), macaroon.ActionRead))
+	assert.NoError(t, rs.Prohibits(ptr("foo"), ActionRead))
+	assert.NoError(t, rs.Prohibits(ptr(zero), ActionRead))
 
-	assert.True(t, errors.Is(rs.Prohibits(nil, macaroon.ActionRead), macaroon.ErrResourceUnspecified))
-	assert.True(t, errors.Is(rs.Prohibits(ptr("foo"), macaroon.ActionWrite), macaroon.ErrUnauthorizedForAction))
-	assert.True(t, errors.Is(rs.Prohibits(ptr(zero), macaroon.ActionWrite), macaroon.ErrUnauthorizedForAction))
+	assert.True(t, errors.Is(rs.Prohibits(nil, ActionRead), ErrResourceUnspecified))
+	assert.True(t, errors.Is(rs.Prohibits(ptr("foo"), ActionWrite), ErrUnauthorizedForAction))
+	assert.True(t, errors.Is(rs.Prohibits(ptr(zero), ActionWrite), ErrUnauthorizedForAction))
 
 	rs = &ResourceSet[string]{
-		zero:  macaroon.ActionRead | macaroon.ActionWrite,
-		"bar": macaroon.ActionWrite,
+		zero:  ActionRead | ActionWrite,
+		"bar": ActionWrite,
 	}
 	assert.True(t, errors.Is(rs.validate(), macaroon.ErrBadCaveat))
 }
 
 func TestResourceSetJSON(t *testing.T) {
-	rs := New[uint64](macaroon.ActionRead, 3, 1, 2)
+	rs := New[uint64](ActionRead, 3, 1, 2)
 
 	rsj, err := json.Marshal(rs)
 	assert.NoError(t, err)
@@ -61,7 +61,7 @@ func TestResourceSetJSON(t *testing.T) {
 }
 
 func TestResourceSetMessagePack(t *testing.T) {
-	rs := New[uint64](macaroon.ActionRead, 3, 1, 2)
+	rs := New[uint64](ActionRead, 3, 1, 2)
 
 	rsm, err := encode(rs)
 	assert.NoError(t, err)
@@ -78,14 +78,14 @@ func TestResourceSetMessagePack(t *testing.T) {
 
 	assert.NoError(t, enc.EncodeMapLen(3))
 	assert.NoError(t, enc.Encode(1))
-	assert.NoError(t, enc.Encode(macaroon.ActionRead))
+	assert.NoError(t, enc.Encode(ActionRead))
 	assert.NoError(t, enc.Encode(2))
-	assert.NoError(t, enc.Encode(macaroon.ActionRead))
+	assert.NoError(t, enc.Encode(ActionRead))
 	assert.NoError(t, enc.Encode(3))
-	assert.NoError(t, enc.Encode(macaroon.ActionRead))
+	assert.NoError(t, enc.Encode(ActionRead))
 	assert.Equal(t, rsm2buf.Bytes(), rsm)
 
-	rsm3, err := encode(map[uint64]macaroon.Action{1: macaroon.ActionRead, 2: macaroon.ActionRead, 3: macaroon.ActionRead})
+	rsm3, err := encode(map[uint64]Action{1: ActionRead, 2: ActionRead, 3: ActionRead})
 	assert.NoError(t, err)
 
 	rs3 := ResourceSet[uint64]{}

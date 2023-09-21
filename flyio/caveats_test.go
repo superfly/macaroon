@@ -11,18 +11,18 @@ import (
 
 func TestCaveatSerialization(t *testing.T) {
 	cs := macaroon.NewCaveatSet(
-		&Organization{ID: 123, Mask: macaroon.ActionRead},
-		&Apps{Apps: resset.ResourceSet[uint64]{123: macaroon.ActionRead}},
-		&FeatureSet{Features: resset.New(macaroon.ActionRead, "123")},
-		&Volumes{Volumes: resset.New(macaroon.ActionRead, "123")},
-		&Machines{Machines: resset.New(macaroon.ActionRead, "123")},
+		&Organization{ID: 123, Mask: resset.ActionRead},
+		&Apps{Apps: resset.ResourceSet[uint64]{123: resset.ActionRead}},
+		&FeatureSet{Features: resset.New(resset.ActionRead, "123")},
+		&Volumes{Volumes: resset.New(resset.ActionRead, "123")},
+		&Machines{Machines: resset.New(resset.ActionRead, "123")},
 		&Mutations{Mutations: []string{"123"}},
 		&ConfineUser{ID: 123},
 		&ConfineOrganization{ID: 123},
 		&IsUser{ID: 123},
-		&MachineFeatureSet{Features: resset.New(macaroon.ActionRead, "123")},
+		&MachineFeatureSet{Features: resset.New(resset.ActionRead, "123")},
 		&FromMachine{ID: "asdf"},
-		&Clusters{Clusters: resset.New(macaroon.ActionRead, "123")},
+		&Clusters{Clusters: resset.New(resset.ActionRead, "123")},
 	)
 
 	b, err := json.Marshal(cs)

@@ -19,9 +19,9 @@ func ZeroID[ID uint64 | string]() (ret ID) {
 
 // ResourceSet is a helper type for defining caveat types specifying
 // object->permission mappings.
-type ResourceSet[ID uint64 | string | Prefix] map[ID]macaroon.Action
+type ResourceSet[ID uint64 | string | Prefix] map[ID]Action
 
-func New[ID uint64 | string | Prefix](p macaroon.Action, ids ...ID) ResourceSet[ID] {
+func New[ID uint64 | string | Prefix](p Action, ids ...ID) ResourceSet[ID] {
 	ret := make(ResourceSet[ID], len(ids))
 
 	for _, id := range ids {
@@ -31,17 +31,17 @@ func New[ID uint64 | string | Prefix](p macaroon.Action, ids ...ID) ResourceSet[
 	return ret
 }
 
-func (rs ResourceSet[ID]) Prohibits(id *ID, action macaroon.Action) error {
+func (rs ResourceSet[ID]) Prohibits(id *ID, action Action) error {
 	if err := rs.validate(); err != nil {
 		return err
 	}
 	if id == nil {
-		return fmt.Errorf("%w resource", macaroon.ErrResourceUnspecified)
+		return fmt.Errorf("%w resource", ErrResourceUnspecified)
 	}
 
 	var (
 		foundPerm = false
-		perm      = macaroon.ActionAll
+		perm      = ActionAll
 		zeroID    ID
 	)
 
@@ -58,11 +58,11 @@ func (rs ResourceSet[ID]) Prohibits(id *ID, action macaroon.Action) error {
 	}
 
 	if !foundPerm {
-		return fmt.Errorf("%w %v", macaroon.ErrUnauthorizedForResource, *id)
+		return fmt.Errorf("%w %v", ErrUnauthorizedForResource, *id)
 	}
 
 	if !action.IsSubsetOf(perm) {
-		return fmt.Errorf("%w access %s (%s not allowed)", macaroon.ErrUnauthorizedForAction, action, action.Remove(perm))
+		return fmt.Errorf("%w access %s (%s not allowed)", ErrUnauthorizedForAction, action, action.Remove(perm))
 	}
 
 	return nil

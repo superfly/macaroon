@@ -56,8 +56,8 @@ func (s *FromMachine) Prohibits(a macaroon.Access) error {
 
 // Organization is an orgid, plus RWX-style access control.
 type Organization struct {
-	ID             uint64          `json:"id"`
-	Mask           macaroon.Action `json:"mask"`
+	ID             uint64        `json:"id"`
+	Mask           resset.Action `json:"mask"`
 	notAttestation `msgpack:"-" json:"-"`
 }
 
@@ -76,11 +76,11 @@ func (c *Organization) Prohibits(a macaroon.Access) error {
 	case !isFlyioAccess:
 		return macaroon.ErrInvalidAccess
 	case f.OrgID == 0:
-		return fmt.Errorf("%w org", macaroon.ErrResourceUnspecified)
+		return fmt.Errorf("%w org", resset.ErrResourceUnspecified)
 	case c.ID != f.OrgID:
-		return fmt.Errorf("%w org %d, only %d", macaroon.ErrUnauthorizedForResource, f.OrgID, c.ID)
+		return fmt.Errorf("%w org %d, only %d", resset.ErrUnauthorizedForResource, f.OrgID, c.ID)
 	case !f.Action.IsSubsetOf(c.Mask):
-		return fmt.Errorf("%w access %s (%s not allowed)", macaroon.ErrUnauthorizedForAction, f.Action, f.Action.Remove(c.Mask))
+		return fmt.Errorf("%w access %s (%s not allowed)", resset.ErrUnauthorizedForAction, f.Action, f.Action.Remove(c.Mask))
 	default:
 		return nil
 	}
@@ -259,7 +259,7 @@ func (c *Mutations) Prohibits(a macaroon.Access) error {
 	}
 
 	if f.Mutation == nil {
-		// explicitly don't return macaroon.ErrResourceUnspecified. A mutation isn't a
+		// explicitly don't return resset.ErrResourceUnspecified. A mutation isn't a
 		// resource and can't be used with IfPresent caveats.
 		return fmt.Errorf("%w: only authorized for graphql mutations", macaroon.ErrUnauthorized)
 	}
@@ -273,7 +273,7 @@ func (c *Mutations) Prohibits(a macaroon.Access) error {
 	}
 
 	if !found {
-		return fmt.Errorf("%w mutation %s", macaroon.ErrUnauthorizedForResource, *f.Mutation)
+		return fmt.Errorf("%w mutation %s", resset.ErrUnauthorizedForResource, *f.Mutation)
 	}
 
 	return nil

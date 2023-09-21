@@ -6,5 +6,5 @@ import "github.com/superfly/macaroon"
 // use IfPresent caveats.
 type Access interface {
 	macaroon.Access
-	GetAction() macaroon.Action
+	GetAction() Action
 }

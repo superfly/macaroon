@@ -44,12 +44,12 @@ func (c *Widgets) IsAttestation() bool {
 
 // implements macaroon.Access; describes an attempt to access a widget
 type WidgetAccess struct {
-	Action     macaroon.Action
+	Action     Action
 	WidgetName *string
 }
 
 // implements macaroon.Access
-func (f *WidgetAccess) GetAction() macaroon.Action {
+func (f *WidgetAccess) GetAction() Action {
 	return f.Action
 }
 
@@ -87,8 +87,8 @@ func Example() {
 	// constrain the macaroon to accessing widget "foo" with any action or
 	// reading widget "bar".
 	err = userMacaroon.Add(&Widgets{ResourceSet[string]{
-		"foo": macaroon.ActionAll,
-		"bar": macaroon.ActionRead,
+		"foo": ActionAll,
+		"bar": ActionRead,
 	}})
 	if err != nil {
 		panic(err)
@@ -123,7 +123,7 @@ func Example() {
 
 	// validate the user's attempt to write to widget "foo"
 	err = verifiedCaveats.Validate(&WidgetAccess{
-		Action:     macaroon.ActionWrite,
+		Action:     ActionWrite,
 		WidgetName: ptr("foo"),
 	})
 	if err != nil {

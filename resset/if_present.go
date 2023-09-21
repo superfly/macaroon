@@ -18,7 +18,7 @@ import (
 // interface.
 type IfPresent struct {
 	Ifs  *macaroon.CaveatSet `json:"ifs"`
-	Else macaroon.Action     `json:"else"`
+	Else Action              `json:"else"`
 }
 
 var _ macaroon.WrapperCaveat = (*IfPresent)(nil)
@@ -42,14 +42,14 @@ func (c *IfPresent) Prohibits(a macaroon.Access) error {
 
 	for _, cc := range c.Ifs.Caveats {
 		// set err if any of the `Ifs` returns nil or a non-errResourceUnspecified error
-		if cErr := cc.Prohibits(ra); !errors.Is(cErr, macaroon.ErrResourceUnspecified) {
+		if cErr := cc.Prohibits(ra); !errors.Is(cErr, ErrResourceUnspecified) {
 			err = merr.Append(err, cErr)
 			ifBranch = true
 		}
 	}
 
 	if !ifBranch && !ra.GetAction().IsSubsetOf(c.Else) {
-		return fmt.Errorf("%w access %s (%s not allowed)", macaroon.ErrUnauthorizedForAction, ra.GetAction(), ra.GetAction().Remove(c.Else))
+		return fmt.Errorf("%w access %s (%s not allowed)", ErrUnauthorizedForAction, ra.GetAction(), ra.GetAction().Remove(c.Else))
 	}
 
 	return err

@@ -29,36 +29,36 @@ func TestIfPresent(t *testing.T) {
 	}
 
 	cavs = []macaroon.Caveat{
-		cavParent(macaroon.ActionRead|macaroon.ActionWrite|macaroon.ActionCreate|macaroon.ActionDelete, 123),
+		cavParent(ActionRead|ActionWrite|ActionCreate|ActionDelete, 123),
 		&IfPresent{
-			Ifs:  macaroon.NewCaveatSet(cavChild(macaroon.ActionRead|macaroon.ActionDelete|macaroon.ActionControl, 234)),
-			Else: macaroon.ActionRead | macaroon.ActionCreate,
+			Ifs:  macaroon.NewCaveatSet(cavChild(ActionRead|ActionDelete|ActionControl, 234)),
+			Else: ActionRead | ActionCreate,
 		},
 	}
 
 	// failing before IfPresent
-	no(macaroon.ErrResourceUnspecified, &testAccess{ChildResource: ptr(uint64(234)), Action: macaroon.ActionRead})                                       // no parent
-	no(macaroon.ErrUnauthorizedForResource, &testAccess{ParentResource: ptr(uint64(987)), ChildResource: ptr(uint64(234)), Action: macaroon.ActionRead}) // bad parent
+	no(ErrResourceUnspecified, &testAccess{ChildResource: ptr(uint64(234)), Action: ActionRead})                                       // no parent
+	no(ErrUnauthorizedForResource, &testAccess{ParentResource: ptr(uint64(987)), ChildResource: ptr(uint64(234)), Action: ActionRead}) // bad parent
 
 	// hit if block (success)
-	yes(&testAccess{ParentResource: ptr(uint64(123)), ChildResource: ptr(uint64(234)), Action: macaroon.ActionRead | macaroon.ActionDelete})
+	yes(&testAccess{ParentResource: ptr(uint64(123)), ChildResource: ptr(uint64(234)), Action: ActionRead | ActionDelete})
 
 	// hit if block (failure)
-	no(macaroon.ErrUnauthorizedForResource, &testAccess{ParentResource: ptr(uint64(123)), ChildResource: ptr(uint64(876)), Action: macaroon.ActionRead})  // wrong child
-	no(macaroon.ErrUnauthorizedForAction, &testAccess{ParentResource: ptr(uint64(123)), ChildResource: ptr(uint64(234)), Action: macaroon.ActionWrite})   // action disallowed by child caveat
-	no(macaroon.ErrUnauthorizedForAction, &testAccess{ParentResource: ptr(uint64(123)), ChildResource: ptr(uint64(234)), Action: macaroon.ActionControl}) // action disallowed by parent caveat
+	no(ErrUnauthorizedForResource, &testAccess{ParentResource: ptr(uint64(123)), ChildResource: ptr(uint64(876)), Action: ActionRead})  // wrong child
+	no(ErrUnauthorizedForAction, &testAccess{ParentResource: ptr(uint64(123)), ChildResource: ptr(uint64(234)), Action: ActionWrite})   // action disallowed by child caveat
+	no(ErrUnauthorizedForAction, &testAccess{ParentResource: ptr(uint64(123)), ChildResource: ptr(uint64(234)), Action: ActionControl}) // action disallowed by parent caveat
 
 	// hit else block (success)
-	yes(&testAccess{ParentResource: ptr(uint64(123)), Action: macaroon.ActionRead | macaroon.ActionCreate})
+	yes(&testAccess{ParentResource: ptr(uint64(123)), Action: ActionRead | ActionCreate})
 
 	// hit else block (failure)
-	no(macaroon.ErrUnauthorizedForAction, &testAccess{ParentResource: ptr(uint64(123)), Action: macaroon.ActionWrite})   // action allowed earlier, disallowed by else
-	no(macaroon.ErrUnauthorizedForAction, &testAccess{ParentResource: ptr(uint64(123)), Action: macaroon.ActionControl}) // action only allowed by if
+	no(ErrUnauthorizedForAction, &testAccess{ParentResource: ptr(uint64(123)), Action: ActionWrite})   // action allowed earlier, disallowed by else
+	no(ErrUnauthorizedForAction, &testAccess{ParentResource: ptr(uint64(123)), Action: ActionControl}) // action only allowed by if
 }
 
 func TestCaveatSerialization(t *testing.T) {
 	cs := macaroon.NewCaveatSet(
-		&IfPresent{Ifs: macaroon.NewCaveatSet(&macaroon.ValidityWindow{NotBefore: 123, NotAfter: 234}), Else: macaroon.ActionDelete},
+		&IfPresent{Ifs: macaroon.NewCaveatSet(&macaroon.ValidityWindow{NotBefore: 123, NotAfter: 234}), Else: ActionDelete},
 	)
 
 	b, err := json.Marshal(cs)
@@ -83,14 +83,14 @@ const (
 
 type testCaveatParentResource struct {
 	ID         uint64
-	Permission macaroon.Action
+	Permission Action
 }
 
 func init() {
 	macaroon.RegisterCaveatType("ParentResource", cavTestParentResource, &testCaveatParentResource{})
 }
 
-func cavParent(permission macaroon.Action, id uint64) macaroon.Caveat {
+func cavParent(permission Action, id uint64) macaroon.Caveat {
 	return &testCaveatParentResource{id, permission}
 }
 
@@ -105,11 +105,11 @@ func (c *testCaveatParentResource) Prohibits(f macaroon.Access) error {
 	case !isTestAccess:
 		return macaroon.ErrInvalidAccess
 	case tf.ParentResource == nil:
-		return macaroon.ErrResourceUnspecified
+		return ErrResourceUnspecified
 	case *tf.ParentResource != c.ID:
-		return fmt.Errorf("%w resource", macaroon.ErrUnauthorizedForResource)
+		return fmt.Errorf("%w resource", ErrUnauthorizedForResource)
 	case !tf.Action.IsSubsetOf(c.Permission):
-		return fmt.Errorf("%w action", macaroon.ErrUnauthorizedForAction)
+		return fmt.Errorf("%w action", ErrUnauthorizedForAction)
 	default:
 		return nil
 	}
@@ -121,14 +121,14 @@ func (c *testCaveatParentResource) IsAttestation() bool {
 
 type testCaveatChildResource struct {
 	ID         uint64
-	Permission macaroon.Action
+	Permission Action
 }
 
 func init() {
 	macaroon.RegisterCaveatType("ChildResource", cavTestChildResource, &testCaveatChildResource{})
 }
 
-func cavChild(permission macaroon.Action, id uint64) macaroon.Caveat {
+func cavChild(permission Action, id uint64) macaroon.Caveat {
 	return &testCaveatChildResource{id, permission}
 }
 
@@ -143,11 +143,11 @@ func (c *testCaveatChildResource) Prohibits(f macaroon.Access) error {
 	case !isTestAccess:
 		return macaroon.ErrInvalidAccess
 	case tf.ChildResource == nil:
-		return macaroon.ErrResourceUnspecified
+		return ErrResourceUnspecified
 	case *tf.ChildResource != c.ID:
-		return fmt.Errorf("%w resource", macaroon.ErrUnauthorizedForResource)
+		return fmt.Errorf("%w resource", ErrUnauthorizedForResource)
 	case !tf.Action.IsSubsetOf(c.Permission):
-		return fmt.Errorf("%w action", macaroon.ErrUnauthorizedForAction)
+		return fmt.Errorf("%w action", ErrUnauthorizedForAction)
 	default:
 		return nil
 	}
@@ -158,14 +158,14 @@ func (c *testCaveatChildResource) IsAttestation() bool {
 }
 
 type testAccess struct {
-	Action         macaroon.Action
+	Action         Action
 	ParentResource *uint64
 	ChildResource  *uint64
 }
 
 var _ Access = (*testAccess)(nil)
 
-func (f *testAccess) GetAction() macaroon.Action {
+func (f *testAccess) GetAction() Action {
 	return f.Action
 }
 
@@ -175,7 +175,7 @@ func (f *testAccess) Now() time.Time {
 
 func (f *testAccess) Validate() error {
 	if f.ChildResource != nil && f.ParentResource == nil {
-		return macaroon.ErrResourceUnspecified
+		return ErrResourceUnspecified
 	}
 	return nil
 }
