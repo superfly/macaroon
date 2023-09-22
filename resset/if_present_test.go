@@ -86,17 +86,13 @@ type testCaveatParentResource struct {
 	Permission Action
 }
 
-func init() {
-	macaroon.RegisterCaveatType("ParentResource", cavTestParentResource, &testCaveatParentResource{})
-}
-
 func cavParent(permission Action, id uint64) macaroon.Caveat {
 	return &testCaveatParentResource{id, permission}
 }
 
-func (c *testCaveatParentResource) CaveatType() macaroon.CaveatType {
-	return cavTestParentResource
-}
+func init()                                                         { macaroon.RegisterCaveatType(&testCaveatParentResource{}) }
+func (c *testCaveatParentResource) CaveatType() macaroon.CaveatType { return cavTestParentResource }
+func (c *testCaveatParentResource) Name() string                    { return "ParentResource" }
 
 func (c *testCaveatParentResource) Prohibits(f macaroon.Access) error {
 	tf, isTestAccess := f.(*testAccess)
@@ -124,17 +120,13 @@ type testCaveatChildResource struct {
 	Permission Action
 }
 
-func init() {
-	macaroon.RegisterCaveatType("ChildResource", cavTestChildResource, &testCaveatChildResource{})
-}
-
 func cavChild(permission Action, id uint64) macaroon.Caveat {
 	return &testCaveatChildResource{id, permission}
 }
 
-func (c *testCaveatChildResource) CaveatType() macaroon.CaveatType {
-	return cavTestChildResource
-}
+func init()                                                        { macaroon.RegisterCaveatType(&testCaveatChildResource{}) }
+func (c *testCaveatChildResource) CaveatType() macaroon.CaveatType { return cavTestChildResource }
+func (c *testCaveatChildResource) Name() string                    { return "ChildResource" }
 
 func (c *testCaveatChildResource) Prohibits(f macaroon.Access) error {
 	tf, isTestAccess := f.(*testAccess)

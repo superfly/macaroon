@@ -15,11 +15,9 @@ type Caveat3P struct {
 	rn []byte `msgpack:"-"`
 }
 
-func init() { RegisterCaveatType("3P", Cav3P, &Caveat3P{}) }
-
-func (c *Caveat3P) CaveatType() CaveatType {
-	return Cav3P
-}
+func init()                                { RegisterCaveatType(&Caveat3P{}) }
+func (c *Caveat3P) CaveatType() CaveatType { return Cav3P }
+func (c *Caveat3P) Name() string           { return "3P" }
 
 func (c *Caveat3P) Prohibits(f Access) error {
 	// Caveat3P are part of token verification and  have no role in
@@ -35,11 +33,9 @@ type ValidityWindow struct {
 	NotAfter  int64 `json:"not_after"`
 }
 
-func init() { RegisterCaveatType("ValidityWindow", CavValidityWindow, &ValidityWindow{}) }
-
-func (c *ValidityWindow) CaveatType() CaveatType {
-	return CavValidityWindow
-}
+func init()                                      { RegisterCaveatType(&ValidityWindow{}) }
+func (c *ValidityWindow) CaveatType() CaveatType { return CavValidityWindow }
+func (c *ValidityWindow) Name() string           { return "ValidityWindow" }
 
 func (c *ValidityWindow) Prohibits(f Access) error {
 	na := time.Unix(c.NotAfter, 0)
@@ -69,11 +65,9 @@ func (c *ValidityWindow) IsAttestation() bool { return false }
 // token's signature.
 type BindToParentToken []byte
 
-func init() { RegisterCaveatType("BindToParentToken", CavBindToParentToken, &BindToParentToken{}) }
-
-func (c *BindToParentToken) CaveatType() CaveatType {
-	return CavBindToParentToken
-}
+func init()                                         { RegisterCaveatType(&BindToParentToken{}) }
+func (c *BindToParentToken) CaveatType() CaveatType { return CavBindToParentToken }
+func (c *BindToParentToken) Name() string           { return "BindToParentToken" }
 
 func (c *BindToParentToken) Prohibits(f Access) error {
 	// IsUser are part of token verification and  have no role in

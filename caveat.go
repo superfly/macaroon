@@ -50,6 +50,9 @@ type Caveat interface {
 	// The numeric caveat type identifier.
 	CaveatType() CaveatType
 
+	// The string name of the caveat. Used for JSON encoding.
+	Name() string
+
 	// Callback for checking if the authorization check is blocked by this
 	// caveat. Implementors must take care to return appropriate error types,
 	// as they have bearing on the evaluation of IfPresent caveats.
@@ -76,7 +79,10 @@ var (
 )
 
 // Register a caveat type for use with this library.
-func RegisterCaveatType(name string, typ CaveatType, zeroValue Caveat) {
+func RegisterCaveatType(zeroValue Caveat) {
+	typ := zeroValue.CaveatType()
+	name := zeroValue.Name()
+
 	if _, dup := t2c[typ]; dup {
 		panic("duplicate caveat type")
 	}

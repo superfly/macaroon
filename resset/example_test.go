@@ -20,11 +20,16 @@ type Widgets struct {
 
 // register our Widgets caveat with the macaroons library so it's able to
 // encode/decode them
-func init() { macaroon.RegisterCaveatType("Widgets", CavWidgets, &Widgets{}) }
+func init() { macaroon.RegisterCaveatType(&Widgets{}) }
 
 // implements macaroon.Caveat
 func (c *Widgets) CaveatType() macaroon.CaveatType {
 	return CavWidgets
+}
+
+// implements macaroon.Caveat
+func (c *Widgets) Name() string {
+	return "Widgets"
 }
 
 // implements macaroon.Caveat
