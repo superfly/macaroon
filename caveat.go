@@ -59,11 +59,22 @@ type Caveat interface {
 	// Specifically, returning ErrResourceUnspecified indicates that caveat
 	// constrains access to a resource type that isn't specified by the Access.
 	Prohibits(f Access) error
+}
 
-	// Whether or not this caveat type is an attestation. Attestations make a
-	// positive assertion rather than constraining access to a resource. Most
-	// caveats are not attestations.
+// Attestations make a positive assertion rather than constraining access to a
+// resource. Most caveats are not attestations. Attestations may only be
+// included in Proofs (macaroons whose signature is finalized and cannot have
+// more caveats appended by the user).
+type Attestation interface {
+	Caveat
+
+	// Whether or not this caveat type is an attestation.
 	IsAttestation() bool
+}
+
+func IsAttestation(c Caveat) bool {
+	a, ok := c.(Attestation)
+	return ok && a.IsAttestation()
 }
 
 // WrapperCaveat should be implemented by caveats that wrap other caveats (eg.

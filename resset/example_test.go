@@ -42,11 +42,6 @@ func (c *Widgets) Prohibits(f macaroon.Access) error {
 	return c.Widgets.Prohibits(wf.WidgetName, wf.Action)
 }
 
-// implements macaroon.Caveat
-func (c *Widgets) IsAttestation() bool {
-	return false
-}
-
 // implements macaroon.Access; describes an attempt to access a widget
 type WidgetAccess struct {
 	Action     Action

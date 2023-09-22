@@ -111,10 +111,6 @@ func (c *testCaveatParentResource) Prohibits(f macaroon.Access) error {
 	}
 }
 
-func (c *testCaveatParentResource) IsAttestation() bool {
-	return false
-}
-
 type testCaveatChildResource struct {
 	ID         uint64
 	Permission Action
@@ -143,10 +139,6 @@ func (c *testCaveatChildResource) Prohibits(f macaroon.Access) error {
 	default:
 		return nil
 	}
-}
-
-func (c *testCaveatChildResource) IsAttestation() bool {
-	return false
 }
 
 type testAccess struct {

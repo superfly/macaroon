@@ -60,10 +60,6 @@ func (c *testCaveatParentResource) Prohibits(f Access) error {
 	}
 }
 
-func (c *testCaveatParentResource) IsAttestation() bool {
-	return false
-}
-
 type testCaveatChildResource struct {
 	ID         uint64
 	Permission int
@@ -92,10 +88,6 @@ func (c *testCaveatChildResource) Prohibits(f Access) error {
 	default:
 		return nil
 	}
-}
-
-func (c *testCaveatChildResource) IsAttestation() bool {
-	return false
 }
 
 type testAccess struct {

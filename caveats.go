@@ -25,8 +25,6 @@ func (c *Caveat3P) Prohibits(f Access) error {
 	return fmt.Errorf("%w (3rd party caveat)", ErrBadCaveat)
 }
 
-func (c *Caveat3P) IsAttestation() bool { return false }
-
 // ValidityWindow establishes the window of time the token is valid for.
 type ValidityWindow struct {
 	NotBefore int64 `json:"not_before"`
@@ -51,8 +49,6 @@ func (c *ValidityWindow) Prohibits(f Access) error {
 	return nil
 }
 
-func (c *ValidityWindow) IsAttestation() bool { return false }
-
 // BindToParentToken is used by discharge tokens to state that they may only
 // be used to discharge 3P caveats for a specific root token or further
 // attenuated versions of that token. This prevents a discharge token from
@@ -74,5 +70,3 @@ func (c *BindToParentToken) Prohibits(f Access) error {
 	// access validation.
 	return fmt.Errorf("%w (bind-to-parent)", ErrBadCaveat)
 }
-
-func (c *BindToParentToken) IsAttestation() bool { return false }

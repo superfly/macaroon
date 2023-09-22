@@ -53,8 +53,6 @@ func (c *IfPresent) Prohibits(a macaroon.Access) error {
 	return err
 }
 
-func (c *IfPresent) IsAttestation() bool { return false }
-
 func (c *IfPresent) Unwrap() *macaroon.CaveatSet {
 	return c.Ifs
 }
