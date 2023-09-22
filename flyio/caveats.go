@@ -22,24 +22,15 @@ const (
 	CavClusters            = 16
 )
 
-type notAttestation struct{}
-
-func (a notAttestation) IsAttestation() bool { return false }
-
 type FromMachine struct {
-	ID             string `json:"id"`
-	notAttestation `msgpack:"-" json:"-"`
+	ID string `json:"id"`
 }
 
-func init() {
-	macaroon.RegisterCaveatType("FromMachineSource", CavFromMachineSource, &FromMachine{})
-}
+func init()                                            { macaroon.RegisterCaveatType(&FromMachine{}) }
+func (c *FromMachine) CaveatType() macaroon.CaveatType { return CavFromMachineSource }
+func (c *FromMachine) Name() string                    { return "FromMachineSource" }
 
-func (s *FromMachine) CaveatType() macaroon.CaveatType {
-	return CavFromMachineSource
-}
-
-func (s *FromMachine) Prohibits(a macaroon.Access) error {
+func (c *FromMachine) Prohibits(a macaroon.Access) error {
 	f, isFlyioAccess := a.(*Access)
 
 	switch {
@@ -47,8 +38,8 @@ func (s *FromMachine) Prohibits(a macaroon.Access) error {
 		return macaroon.ErrInvalidAccess
 	case f.SourceMachine == nil:
 		return fmt.Errorf("%w missing SourceMachine", macaroon.ErrInvalidAccess)
-	case s.ID != *f.SourceMachine:
-		return fmt.Errorf("%w: unauthorized source, expected from machine %s, but got %s", macaroon.ErrUnauthorized, s.ID, *f.SourceMachine)
+	case c.ID != *f.SourceMachine:
+		return fmt.Errorf("%w: unauthorized source, expected from machine %s, but got %s", macaroon.ErrUnauthorized, c.ID, *f.SourceMachine)
 	default:
 		return nil
 	}
@@ -56,18 +47,13 @@ func (s *FromMachine) Prohibits(a macaroon.Access) error {
 
 // Organization is an orgid, plus RWX-style access control.
 type Organization struct {
-	ID             uint64        `json:"id"`
-	Mask           resset.Action `json:"mask"`
-	notAttestation `msgpack:"-" json:"-"`
+	ID   uint64        `json:"id"`
+	Mask resset.Action `json:"mask"`
 }
 
-func init() {
-	macaroon.RegisterCaveatType("Organization", CavOrganization, &Organization{})
-}
-
-func (c *Organization) CaveatType() macaroon.CaveatType {
-	return CavOrganization
-}
+func init()                                             { macaroon.RegisterCaveatType(&Organization{}) }
+func (c *Organization) CaveatType() macaroon.CaveatType { return CavOrganization }
+func (c *Organization) Name() string                    { return "Organization" }
 
 func (c *Organization) Prohibits(a macaroon.Access) error {
 	f, isFlyioAccess := a.(*Access)
@@ -89,17 +75,12 @@ func (c *Organization) Prohibits(a macaroon.Access) error {
 // ConfineOrganization is a requirement placed on 3P caveats, requiring that the
 // authenticated used be associated with OrgID. It has no meaning in a 1P setting.
 type ConfineOrganization struct {
-	ID             uint64 `json:"id"`
-	notAttestation `msgpack:"-" json:"-"`
+	ID uint64 `json:"id"`
 }
 
-func init() {
-	macaroon.RegisterCaveatType("ConfineOrganization", CavConfineOrganization, &ConfineOrganization{})
-}
-
-func (c *ConfineOrganization) CaveatType() macaroon.CaveatType {
-	return CavConfineOrganization
-}
+func init()                                                    { macaroon.RegisterCaveatType(&ConfineOrganization{}) }
+func (c *ConfineOrganization) CaveatType() macaroon.CaveatType { return CavConfineOrganization }
+func (c *ConfineOrganization) Name() string                    { return "ConfineOrganization" }
 
 func (c *ConfineOrganization) Prohibits(macaroon.Access) error {
 	// ConfineOrganization is only used in 3P caveats and has no role in access validation.
@@ -108,17 +89,12 @@ func (c *ConfineOrganization) Prohibits(macaroon.Access) error {
 
 // ConfineUser is a caveat limiting this token to a specific user ID.
 type ConfineUser struct {
-	ID             uint64 `json:"id"`
-	notAttestation `msgpack:"-" json:"-"`
+	ID uint64 `json:"id"`
 }
 
-func init() {
-	macaroon.RegisterCaveatType("ConfineUser", CavConfineUser, &ConfineUser{})
-}
-
-func (c *ConfineUser) CaveatType() macaroon.CaveatType {
-	return CavConfineUser
-}
+func init()                                            { macaroon.RegisterCaveatType(&ConfineUser{}) }
+func (c *ConfineUser) CaveatType() macaroon.CaveatType { return CavConfineUser }
+func (c *ConfineUser) Name() string                    { return "ConfineUser" }
 
 func (c *ConfineUser) Prohibits(macaroon.Access) error {
 	// ConfineUser is only used in 3P caveats and has no role in access validation.
@@ -129,17 +105,12 @@ func (c *ConfineUser) Prohibits(macaroon.Access) error {
 // only with the listed apps, regardless of what the token says. Additional Apps can be added,
 // but they can only narrow, not expand, which apps (or access levels) can be reached from the token.
 type Apps struct {
-	Apps           resset.ResourceSet[uint64] `json:"apps"`
-	notAttestation `msgpack:"-" json:"-"`
+	Apps resset.ResourceSet[uint64] `json:"apps"`
 }
 
-func init() {
-	macaroon.RegisterCaveatType("Apps", CavApps, &Apps{})
-}
-
-func (c *Apps) CaveatType() macaroon.CaveatType {
-	return CavApps
-}
+func init()                                     { macaroon.RegisterCaveatType(&Apps{}) }
+func (c *Apps) CaveatType() macaroon.CaveatType { return CavApps }
+func (c *Apps) Name() string                    { return "Apps" }
 
 func (c *Apps) Prohibits(a macaroon.Access) error {
 	f, isFlyioAccess := a.(*Access)
@@ -150,17 +121,12 @@ func (c *Apps) Prohibits(a macaroon.Access) error {
 }
 
 type Volumes struct {
-	Volumes        resset.ResourceSet[string] `json:"volumes"`
-	notAttestation `msgpack:"-" json:"-"`
+	Volumes resset.ResourceSet[string] `json:"volumes"`
 }
 
-func init() {
-	macaroon.RegisterCaveatType("Volumes", CavVolumes, &Volumes{})
-}
-
-func (c *Volumes) CaveatType() macaroon.CaveatType {
-	return CavVolumes
-}
+func init()                                        { macaroon.RegisterCaveatType(&Volumes{}) }
+func (c *Volumes) CaveatType() macaroon.CaveatType { return CavVolumes }
+func (c *Volumes) Name() string                    { return "Volumes" }
 
 func (c *Volumes) Prohibits(a macaroon.Access) error {
 	f, isFlyioAccess := a.(*Access)
@@ -171,17 +137,12 @@ func (c *Volumes) Prohibits(a macaroon.Access) error {
 }
 
 type Machines struct {
-	Machines       resset.ResourceSet[string] `json:"machines"`
-	notAttestation `msgpack:"-" json:"-"`
+	Machines resset.ResourceSet[string] `json:"machines"`
 }
 
-func init() {
-	macaroon.RegisterCaveatType("Machines", CavMachines, &Machines{})
-}
-
-func (c *Machines) CaveatType() macaroon.CaveatType {
-	return CavMachines
-}
+func init()                                         { macaroon.RegisterCaveatType(&Machines{}) }
+func (c *Machines) CaveatType() macaroon.CaveatType { return CavMachines }
+func (c *Machines) Name() string                    { return "Machines" }
 
 func (c *Machines) Prohibits(a macaroon.Access) error {
 	f, isFlyioAccess := a.(*Access)
@@ -192,17 +153,12 @@ func (c *Machines) Prohibits(a macaroon.Access) error {
 }
 
 type MachineFeatureSet struct {
-	Features       resset.ResourceSet[string] `json:"features"`
-	notAttestation `msgpack:"-" json:"-"`
+	Features resset.ResourceSet[string] `json:"features"`
 }
 
-func init() {
-	macaroon.RegisterCaveatType("MachineFeatureSet", CavMachineFeatureSet, &MachineFeatureSet{})
-}
-
-func (c *MachineFeatureSet) CaveatType() macaroon.CaveatType {
-	return CavMachineFeatureSet
-}
+func init()                                                  { macaroon.RegisterCaveatType(&MachineFeatureSet{}) }
+func (c *MachineFeatureSet) CaveatType() macaroon.CaveatType { return CavMachineFeatureSet }
+func (c *MachineFeatureSet) Name() string                    { return "MachineFeatureSet" }
 
 func (c *MachineFeatureSet) Prohibits(a macaroon.Access) error {
 	f, isFlyioAccess := a.(*Access)
@@ -218,17 +174,12 @@ func (c *MachineFeatureSet) Prohibits(a macaroon.Access) error {
 // individually with a Networks caveat. The feature name is free-form and more
 // should be addded as it makes sense.
 type FeatureSet struct {
-	Features       resset.ResourceSet[string] `json:"features"`
-	notAttestation `msgpack:"-" json:"-"`
+	Features resset.ResourceSet[string] `json:"features"`
 }
 
-func init() {
-	macaroon.RegisterCaveatType("FeatureSet", CavFeatureSet, &FeatureSet{})
-}
-
-func (c *FeatureSet) CaveatType() macaroon.CaveatType {
-	return CavFeatureSet
-}
+func init()                                           { macaroon.RegisterCaveatType(&FeatureSet{}) }
+func (c *FeatureSet) CaveatType() macaroon.CaveatType { return CavFeatureSet }
+func (c *FeatureSet) Name() string                    { return "FeatureSet" }
 
 func (c *FeatureSet) Prohibits(a macaroon.Access) error {
 	f, isFlyioAccess := a.(*Access)
@@ -240,17 +191,12 @@ func (c *FeatureSet) Prohibits(a macaroon.Access) error {
 
 // Mutations is a set of GraphQL mutations allowed by this token.
 type Mutations struct {
-	Mutations      []string `json:"mutations"`
-	notAttestation `msgpack:"-" json:"-"`
+	Mutations []string `json:"mutations"`
 }
 
-func init() {
-	macaroon.RegisterCaveatType("Mutations", CavMutations, &Mutations{})
-}
-
-func (c *Mutations) CaveatType() macaroon.CaveatType {
-	return CavMutations
-}
+func init()                                          { macaroon.RegisterCaveatType(&Mutations{}) }
+func (c *Mutations) CaveatType() macaroon.CaveatType { return CavMutations }
+func (c *Mutations) Name() string                    { return "Mutations" }
 
 func (c *Mutations) Prohibits(a macaroon.Access) error {
 	f, isFlyioAccess := a.(*Access)
@@ -281,17 +227,12 @@ func (c *Mutations) Prohibits(a macaroon.Access) error {
 
 // TODO: deprecate this and replace with an attestation
 type IsUser struct {
-	ID             uint64 `json:"uint64"`
-	notAttestation `msgpack:"-" json:"-"`
+	ID uint64 `json:"uint64"`
 }
 
-func init() {
-	macaroon.RegisterCaveatType("IsUser", CavIsUser, &IsUser{})
-}
-
-func (c *IsUser) CaveatType() macaroon.CaveatType {
-	return CavIsUser
-}
+func init()                                       { macaroon.RegisterCaveatType(&IsUser{}) }
+func (c *IsUser) CaveatType() macaroon.CaveatType { return CavIsUser }
+func (c *IsUser) Name() string                    { return "IsUser" }
 
 func (c *IsUser) Prohibits(a macaroon.Access) error {
 	// IsUser is mostyly metadata and plays no role in access validation.
@@ -300,17 +241,12 @@ func (c *IsUser) Prohibits(a macaroon.Access) error {
 
 // Clusters is a set of Cluster caveats, with their RWX access levels.
 type Clusters struct {
-	Clusters       resset.ResourceSet[string] `json:"clusters"`
-	notAttestation `msgpack:"-" json:"-"`
+	Clusters resset.ResourceSet[string] `json:"clusters"`
 }
 
-func init() {
-	macaroon.RegisterCaveatType("Clusters", CavClusters, &Clusters{})
-}
-
-func (c *Clusters) CaveatType() macaroon.CaveatType {
-	return CavClusters
-}
+func init()                                         { macaroon.RegisterCaveatType(&Clusters{}) }
+func (c *Clusters) CaveatType() macaroon.CaveatType { return CavClusters }
+func (c *Clusters) Name() string                    { return "Clusters" }
 
 func (c *Clusters) Prohibits(a macaroon.Access) error {
 	f, isFlyioAccess := a.(*Access)

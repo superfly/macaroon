@@ -213,7 +213,7 @@ func (m *Macaroon) Add(caveats ...Caveat) error {
 	}
 
 	for _, caveat := range caveats {
-		if caveat.IsAttestation() && !m.Nonce.Proof {
+		if IsAttestation(caveat) && !m.Nonce.Proof {
 			return errors.New("cannot add attestations to non-proof macaroons")
 		}
 
@@ -361,11 +361,11 @@ func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingI
 				return nil, fmt.Errorf("discharge bound to different parent token: %x", cav)
 			}
 		default:
-			if cav.IsAttestation() && !m.Nonce.Proof {
+			if IsAttestation(cav) && !m.Nonce.Proof {
 				return nil, errors.New("attestation in non-proof macaroon")
 			}
 
-			if !cav.IsAttestation() || trustAttestations {
+			if !IsAttestation(cav) || trustAttestations {
 				ret.Caveats = append(ret.Caveats, c)
 			}
 		}

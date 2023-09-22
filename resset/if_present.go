@@ -23,11 +23,9 @@ type IfPresent struct {
 
 var _ macaroon.WrapperCaveat = (*IfPresent)(nil)
 
-func init() { macaroon.RegisterCaveatType("IfPresent", macaroon.CavIfPresent, &IfPresent{}) }
-
-func (c *IfPresent) CaveatType() macaroon.CaveatType {
-	return macaroon.CavIfPresent
-}
+func init()                                          { macaroon.RegisterCaveatType(&IfPresent{}) }
+func (c *IfPresent) CaveatType() macaroon.CaveatType { return macaroon.CavIfPresent }
+func (c *IfPresent) Name() string                    { return "IfPresent" }
 
 func (c *IfPresent) Prohibits(a macaroon.Access) error {
 	ra, ok := a.(Access)
@@ -54,8 +52,6 @@ func (c *IfPresent) Prohibits(a macaroon.Access) error {
 
 	return err
 }
-
-func (c *IfPresent) IsAttestation() bool { return false }
 
 func (c *IfPresent) Unwrap() *macaroon.CaveatSet {
 	return c.Ifs

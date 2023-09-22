@@ -59,7 +59,7 @@ func Validate[A Access](cs *CaveatSet, accesses ...A) error {
 func (c *CaveatSet) validateAccess(access Access) error {
 	var err error
 	for _, caveat := range c.Caveats {
-		if caveat.IsAttestation() {
+		if IsAttestation(caveat) {
 			continue
 		}
 

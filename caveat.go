@@ -50,17 +50,31 @@ type Caveat interface {
 	// The numeric caveat type identifier.
 	CaveatType() CaveatType
 
+	// The string name of the caveat. Used for JSON encoding.
+	Name() string
+
 	// Callback for checking if the authorization check is blocked by this
 	// caveat. Implementors must take care to return appropriate error types,
 	// as they have bearing on the evaluation of IfPresent caveats.
 	// Specifically, returning ErrResourceUnspecified indicates that caveat
 	// constrains access to a resource type that isn't specified by the Access.
 	Prohibits(f Access) error
+}
 
-	// Whether or not this caveat type is an attestation. Attestations make a
-	// positive assertion rather than constraining access to a resource. Most
-	// caveats are not attestations.
+// Attestations make a positive assertion rather than constraining access to a
+// resource. Most caveats are not attestations. Attestations may only be
+// included in Proofs (macaroons whose signature is finalized and cannot have
+// more caveats appended by the user).
+type Attestation interface {
+	Caveat
+
+	// Whether or not this caveat type is an attestation.
 	IsAttestation() bool
+}
+
+func IsAttestation(c Caveat) bool {
+	a, ok := c.(Attestation)
+	return ok && a.IsAttestation()
 }
 
 // WrapperCaveat should be implemented by caveats that wrap other caveats (eg.
@@ -76,7 +90,10 @@ var (
 )
 
 // Register a caveat type for use with this library.
-func RegisterCaveatType(name string, typ CaveatType, zeroValue Caveat) {
+func RegisterCaveatType(zeroValue Caveat) {
+	typ := zeroValue.CaveatType()
+	name := zeroValue.Name()
+
 	if _, dup := t2c[typ]; dup {
 		panic("duplicate caveat type")
 	}
