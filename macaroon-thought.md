@@ -453,6 +453,14 @@ user. Components in our prod environment cannot just randomly go off and make up
 
 One other thing to notice: in both cases, we end up with a service token that is pretty powerful (for instance, it's usable without an accompanying authentication token). Attenuation allows us to further restrict the token; for instance, the Machines API can take a service token and slap an additional caveat onto it that makes the token usable only from a particular Fly Machine on a particular worker host; it saves that token and throws away the original, scarier service token.
 
+## Service Tokens and Fly Machines
+
+Every running Fly Machine is managed by the `flyd` instance running on its worker server. `flyd` stores information about the Fly Machine in a local [BoltDB](https://github.com/boltdb/bolt), and manages a [VSock](https://manpages.ubuntu.com/manpages/focal/man7/vsock.7.html) connection to the `init` process running in the Fly Machine. 
+
+Our `init`, in turn, exports a Unix socket available to superuser processes running in the Fly Machine. Machines API requests routed through that Unix socket have the Machine's service token associated with them automatically.
+
+We don't use this for much right now, beyond a metadata management service we use for Fly Postgres. But it's probably the basis for a Machine Privileges system that functions the way the AWS Instance Metadata service does, when we get around to designing that.
+
 ## Glossary
 
 <dl>
