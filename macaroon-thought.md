@@ -150,6 +150,14 @@ Some basic notes on the low-level security of these tokens:
   can run there). We run a [LiteFS](https://github.com/superfly/litefs)-backed 
   cluster of Macaroon signature verifiers (we call them `tkdb`s) around the    
   world.
+  
+## An Aside About Third Party Authentication Caveats
+
+As you'll see later, 3P caveats involve a lot of mechanism. We didn't necessarily need all that mechanism to authenticate tokens. We could have instead come up with an `(authenticated-as uid=*, org=4721)` caveat. This caveat would clear if the request was submitted by someone logged into the system, which we'd verify by checking their standard OAuth token.
+
+Why didn't we do this? Because our standard OAuth tokens are way too powerful. They're like the `(org=4721, mask=*)` Macaroon all by themselves. The whole point is to get rid of them. 
+
+We still didn't need to use 3P caveats to accomplish this; we could design and issue a new set of OAuth tokens that only work with Macaroons, or some API key that expresses the same thing. But then we'd have to build those services, and while they'd probably be less mechanism than 3P caveats, we need 3P caveats for other things anyways, so it'd be a net complexity lose for us.
 
 ## Using Fly Macaroons
 
