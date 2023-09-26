@@ -40,18 +40,6 @@ A Macaroon accompanies a request that attempts an action. The Macaroon determine
 
 Obviously, you need to do both things: without verification, you can simply mint a Macaroon that says you're allowed to do anything. Without clearing, the contents of the Macaroon don't matter. 
 
-Each part of this problem has its own pet complexities:
-
-* Verification is complicated because we have thousands of different points
-  in our production environment that need to check Macaroons. Macaroons
-  rely entirely on symmetric cryptography, so anything that can directly verify
-  a Macaroon can also mint new ones, which isn't ideal. 
-  
-* Clearing is complicated because the information needed to clear a caveat
-  is itself distributed; given a request to delete app `555` and a Macaroon
-  that says "you can do anything to org `4721`", you still need to know 
-  whether app `555` belongs to org `4721` to clear the caveat.
-
 ## The Fly.io Macaroon Data Model
 
 The first thing to understand is that a Macaroon with no caveats at all would authorize any action, on anybody's account. It would be a superuser token. We won't generate tokens like this, and our Macaroon checking code will freak out if it sees one.
@@ -378,6 +366,32 @@ This all sounds convoluted. It is super powerful. Think of it as a plugin interf
   token, to use as a 3P caveat on Macaroons authorizing super-sensitive 
   operations.
 
+## Brief Essay, Semantics Of Checking, Cont'd
+
+Each part of the Macaroon-checking problem has its own pet complexities:
+
+* Verification is complicated because we have thousands of different points
+  in our production environment that need to check Macaroons. Macaroons
+  rely entirely on symmetric cryptography, so anything that can directly verify
+  a Macaroon can also mint new ones, which isn't ideal. 
+  
+* Clearing is complicated because the information needed to clear a caveat
+  is itself distributed; given a request to delete app `555` and a Macaroon
+  that says "you can do anything to org `4721`", you still need to know 
+  whether app `555` belongs to org `4721` to clear the caveat.
+
+But the underlying design of Macaroons also kills off a lot of complexity, which is why hipsters like us are so taken with them:
+
+* In the main, verification of Macaroon signatures relies entirely on HMAC;
+  there's no error-prone public key signatures, no headers that select which
+  cryptography you're using, and not a lot of cryptographic mistakes you could
+  possibly make.
+  
+* The clearing model for Macaroons --- just check every caveat individually
+  and reject the request if any of them fail --- drastically simplifies 
+  authorization logic. There aren't dependencies or other kinds of hidden 
+  state between caveats. 
+
 ## Service Tokens
 
 This isn't user-servicable detail, but is ideally useful for people who work at Fly.io and at least a little interesting for people who don't.
@@ -455,7 +469,8 @@ The requester now holds a token equivalently powerful to the original Macaroon, 
   <dd>A Discharge Macaroon issued from Fly.io's authentication endpoint; think of it as a translation gateway from Fly.io's standard authentication (which usually uses all-powerful OAuth2 tokens) to Macaroons.</dd>
   
   <dt>TKDB</dt>
-  <dd>The Fly.io ToKen DataBase. A distributed service we deploy on isolated hardware around the world to hold token secrets, so that our production hosts can verify, cache, and invalidate token signatures without pushing token secrets onto thousands of hosts.</dd>
+  <dd>The Fly.io ToKen DataBase. A distributed service we deploy on isolated hardware around the world to hold token secrets, so that our production hosts can verify, cache, and invalidate token signatures without pushing token secrets onto thousands of hosts. TKDB exports an internal API secured with 
+a Noise transport (think: cool kid mTLS) to Fly.io components like `flyd`.</dd>
 
   <dt>VID and CID</dt>
   <dd>The "tickets" in a 3P caveat. You only care about the CIDs, or "caveat tickets"; you tear off the CID from a 3P caveat and present it to the third-party service that discharges Macaroons for it; that service decrypts the ticket and uses it to build the discharge token.</dd>
