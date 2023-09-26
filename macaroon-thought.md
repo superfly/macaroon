@@ -333,8 +333,7 @@ metadata, like "make sure this user is logged into Fly.io with an account that
 is a member of org `4721`. The service does whatever it does to make sure it's
 OK discharging this ticket; if it is, it creates a new Macaroon, using `r` --- which it just recovered by decrypted `CID` --- as the secret HMAC key, and `CID` itself as the nonce. If it wants, it can tack some additional caveats to this discharge Macaroon, like a short `ValidityWindow`. 
 
-Back to our API. You hand us your original root Macaroon, with the 3P caveat attached, and a discharge Macaroon with a matching URL. We check all the caveats until we get to the 3P caveat. We match the 3P caveat with the discharge Macaroon you gave us, by comparing URLs. Then, because we started
-with the original Macaroon secret `R` and thus know `T_N`, we decrypt the `VID`, recovering `r`. That gives us the secret we need to verify the discharge Macaroon. 
+Back to our API. You hand us your original root Macaroon, with the 3P caveat attached, and a discharge Macaroon with a matching URL. We check all the caveats until we get to the 3P caveat. We match the 3P caveat with the discharge Macaroon you gave us, by comparing URLs (or `CID`s --- the `CID` in the caveat is the same as nonce of the matching discharge). Then, because we started with the original Macaroon secret `R` and thus know `T_N`, we decrypt the `VID`, recovering `r`. That gives us the secret we need to verify the discharge Macaroon. 
 
 The key things to understand here:
 
