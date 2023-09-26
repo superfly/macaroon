@@ -3,7 +3,7 @@
 ## Describe a Fly Macaroon In The Fewest Words Possible
 
 A Macaroon is an HMAC-authenticated access token. Fly Macaroons are encoded 
-in MsgPack, which is a kind of binary JSON. Macaroons are like other kinds of access tokens, with these quirks:
+in [MsgPack](https://msgpack.org/index.html), which is a kind of binary JSON. Macaroons are like other kinds of access tokens, with these quirks:
 
 * They're cryptographically secured using a minimal, non-negotiable set of
   primitives: HMAC and an AEAD cipher. There are no crypto parameters to set
@@ -11,7 +11,7 @@ in MsgPack, which is a kind of binary JSON. Macaroons are like other kinds of ac
   
 * They're rigidly structured: every Macaroon is a set of restrictions on 
   what its holder can do. These are called caveats. All caveats 
-  must clear for the token to authorize an action. 
+  must approve an action (or "clear") for the token to authorize that action. 
   
 * Anybody can take a Macaroon and add additional caveats to it before
   saving it or passing it on to someone else. This is called "attenuation". 
@@ -20,12 +20,37 @@ in MsgPack, which is a kind of binary JSON. Macaroons are like other kinds of ac
   this), and all caveats must clear.
   
 * A special kind of "third party" (3P) caveat encodes whether some other,
-  possibly unrelated service authorizes a request. That service needs 
+  possibly unrelated service needs to authorizes a request. That service needs 
   to understand Macaroons but doesn't need to be able to talk to Fly.io. 
   Fly.io doesn't need to know about the services. Some simple cryptography
   makes this work.
   
 There's more to say but it'll all just confuse you until you get more context.
+
+## A Brief Essay On The Semantics Of Checking Macaroons
+
+A Macaroon accompanies a request that attempts an action. The Macaroon determines whether the action is authorized. There are two parts to this determination:
+
+<dl>
+  <dt>Verification</dt>
+  <dd>... means checking the cryptographic authenticator on the Macaroon to ensure that the bytes in the token weren't tampered with (in particular: that no caveat added to the Macaroon was later removed).</dd>
+  <dt>Clearing</dt>
+  <dd>... means evaluating the contents of each caveat in the Macaroon to see if it forbids the requested action.</dd>
+</dl>
+
+Obviously, you need to do both things: without verification, you can simply mint a Macaroon that says you're allowed to do anything. Without clearing, the contents of the Macaroon don't matter. 
+
+Each part of this problem has its own pet complexities:
+
+* Verification is complicated because we have thousands of different points
+  in our production environment that need to check Macaroons. Macaroons
+  rely entirely on symmetric cryptography, so anything that can directly verify
+  a Macaroon can also mint new ones, which isn't ideal. 
+  
+* Clearing is complicated because the information needed to clear a caveat
+  is itself distributed; given a request to delete app `555` and a Macaroon
+  that says "you can do anything to org `4721`", you still need to know 
+  whether app `555` belongs to org `4721` to clear the caveat.
 
 ## The Fly.io Macaroon Data Model
 
@@ -40,7 +65,7 @@ type Organization struct {
 }
 ```
 
-We'll use a loose shorthand to talk about caveats. For example, if you've been given the most powerful Macaroon we'll issue for organization 4721, it'll start with a caveat `(org=4721, mask=*)`. "Mask" is roughly a Unix file style permission mask; for now, think `rwx`.
+We'll use a loose shorthand to talk about caveats. For example, if you've been given the most powerful Macaroon we'll issue for organization `4721`, it'll start with a caveat `(org=4721, mask=*)`. "Mask" is roughly a Unix file style permission mask; for now, think `rwx`.
 
 The Macaroon we just described is much too powerful to hand out casually. The point of Macaroons is to scope access down. We support a variety of caveats
 to do that:
@@ -60,7 +85,7 @@ to do that:
 * `ValidityWindow` sets expiry for a token.
 
 Note that you can take the token `(org=4721, mask=*)` and layer onto it
-a caveat like `(app=8910, mask=*)`, _even if app 8910 isn't in org 4721_. That's fine! Every caveat must clear, so if you tried to use that token to access app 8910, the Organization caveat would reject the action, regardless of what the App caveat said.
+a caveat like `(app=8910, mask=*)`, _even if app 8910 isn't in org `4721`_. That's fine! Every caveat must clear, so if you tried to use that token to access app 8910, the Organization caveat would reject the action, regardless of what the App caveat said.
 
 We currently recognize the following access mask bits:
 
@@ -87,7 +112,7 @@ One of the basic things you'd do with a Macaroon is to change the access masks o
 
 This is us taking the administrator-level org token we started with and adding a new caveat that locks us down to read operations, to create a read-only token. 
 
-If it made sense, you could further attenuate:
+You could further attenuate:
 
 ```
    (org=4721, mask=*)
@@ -107,7 +132,9 @@ A design goal we had with these tokens: it should be possible to generate a toke
 
 _Don't actually email these tokens, but keep reading_.
 
-Like other access tokens, Fly Macaroons are bearer credentials.; they're all you need to authorize a request. At the same time, stealing one from the mail shouldn't really cost us much security. How does this work?
+Like other access tokens, Fly Macaroons are bearer credentials. At
+the same time, stealing one from the mail shouldn't really cost us
+much security. How does this work?
 
 In addition to the Organization caveat, every Fly Macaroon we issue has a _third party (3P) caveat_ pointing to our authentication system. So a "real" admin token would look like this:
 
@@ -117,11 +144,11 @@ In addition to the Organization caveat, every Fly Macaroon we issue has a _third
     (validity-window 3 months)
 ```
 
-What that third-party caveat says is: to do something to org 4721, 
+What that third-party caveat says is: to do something to org `4721`, 
 present this token, and also another token, a "3P discharge token",
 issued from https://api.fly.io/aaa/v1, that satisfies `org=4721`.
 
-What this means is that the Macaroon above, which we'd call a "root Macaroon", can't do anything by itself. It's only useful in combination with a second Macaroon, the "authentication Macaroon", that proves you're logged in (in this case, to an account with access to org 4721). 
+What this means is that the Macaroon above, which we'd call a "root Macaroon", can't do anything by itself. It's only useful in combination with a second Macaroon, the "authentication Macaroon", that proves you're logged in (in this case, to an account with access to org `4721`). 
 
 To get that authentication Macaroon, you need a root Macaroon, and a Fly.io login to an account that has the right access to an organization. If an attacker steals your root Macaroon from the mail, and they can get the matching authorization Macaroon, they probably already had the access they needed.
 
@@ -157,7 +184,7 @@ As you'll see later, 3P caveats involve a lot of mechanism. We didn't necessaril
 
 Why didn't we do this? Because our standard OAuth tokens are way too powerful. They're like the `(org=4721, mask=*)` Macaroon all by themselves. The whole point is to get rid of them. 
 
-We still didn't need to use 3P caveats to accomplish this; we could design and issue a new set of OAuth tokens that only work with Macaroons, or some API key that expresses the same thing. But then we'd have to build those services, and while they'd probably be less mechanism than 3P caveats, we need 3P caveats for other things anyways, so it'd be a net complexity lose for us.
+We still didn't need to use 3P caveats to accomplish this; we could design and issue a new set of OAuth tokens that only work with Macaroons, or some API key that expresses the same thing. But then we'd have to build those services, and while they'd probably be less mechanism than 3P caveats, we need 3P caveats for other things anyways, so it'd be a net complexity liability for us.
 
 ## Using Fly Macaroons
 
@@ -239,7 +266,7 @@ hand that token off to your CI/CD system.
 
 This should be easily expressed in caveats, except that the access you
 need to deploy an application is quirky: Fly.io deployments involve
-_builders_ (temporary Fly Machines that run Docker container builders) and _wireguard access_ (to talk to the builder). 
+_builders_ (temporary Fly Machines that run Docker container builders) and _WireGuard access_ (to talk to the builder). 
 
 We have caveats for both of these things:
 
@@ -266,7 +293,7 @@ So that's not going to work. Here's what we do:
      mask=r)
 ```
 
-This caveat does what you want here: either:
+This caveat does what you want. Either:
 
 (1) You're making a builder or wg request, in which case you're fine
     (because `mask=*`).
@@ -274,23 +301,7 @@ This caveat does what you want here: either:
 (2) Or, you're doing something else, in which case it had better be
     a read, because the "else" branch of the `if-present` is `r`.
 
-You could do a finer-grained token:
-
-```
-   (org=4721, mask=*)
-   (if-present 
-      ((feature-set "builders", mask=*), (feature-set "wg", mask=*))
-     mask=*)
-   (if-present 
-      ((app=555, mask=r))
-     mask=r)
-```
-
-Now you can (1) do WireGuard or builder stuff, (2) do stuff with app `555`
-and no other app, and otherwise read things.
-
-IfPresent is itself just a caveat; one that contains other caveats. So,
-yes, you can nest them.
+IfPresent is itself just a caveat; one that contains other caveats. You can nest them.
 
 ## How Third Party Caveats Work
 
@@ -300,9 +311,9 @@ A 3P caveat is a caveat that is checked by matching it up with a "discharge Maca
 
 Here's how this works. Assume we're some entity --- could be anybody on the Internet, including you, dear reader --- that wants to add a 3P caveat to an existing Macaroon. 
 
-1. We arrange a shared key `KA` between ourselves (the entity adding the
-   third-party caveat) and the third-party service that will issue discharge    
-   Macaroons. 
+1. We arrange a shared key `KA` between ourselves (the entity adding
+   the third-party caveat) and the third-party service that will issue
+   discharge Macaroons.
    
 2. We generate an ephemeral key `r`, which will serve as the secret HMAC
    key for the discharge Macaroon we want issued.
@@ -315,7 +326,7 @@ Here's how this works. Assume we're some entity --- could be anybody on the Inte
    
 5. We use `KA` to again encrypt `r`, this time with some extra metadata,
    like a set of caveats we want to tell the third-party service about. Call
-   this blob `CID`, or "the client ticket". 
+   this blob `CID`, or "the caveat ticket". 
    
 6. We create a caveat out of the tuple `(URL, VID, CID)` (the URL is just a 
    string name for the third-party service, and can be anything).
@@ -333,34 +344,37 @@ metadata, like "make sure this user is logged into Fly.io with an account that
 is a member of org `4721`. The service does whatever it does to make sure it's
 OK discharging this ticket; if it is, it creates a new Macaroon, using `r` --- which it just recovered by decrypted `CID` --- as the secret HMAC key, and `CID` itself as the nonce. If it wants, it can tack some additional caveats to this discharge Macaroon, like a short `ValidityWindow`. 
 
-Back to our API. You hand us your original root Macaroon, with the 3P caveat attached, and a discharge Macaroon with a matching URL. We check all the caveats until we get to the 3P caveat. We match the 3P caveat with the discharge Macaroon you gave us, by comparing URLs (or `CID`s --- the `CID` in the caveat is the same as nonce of the matching discharge). Then, because we started with the original Macaroon secret `R` and thus know `T_N`, we decrypt the `VID`, recovering `r`. That gives us the secret we need to verify the discharge Macaroon. 
+Back to our API. You hand us your original root Macaroon, with the 3P caveat attached, and a discharge Macaroon with a matching URL. We check all the caveats until we get to the 3P caveat. We match the 3P caveat with the discharge Macaroon you gave us, by comparing URLs (or `CID`s --- the `CID` in the caveat is the same as nonce of the matching discharge). Then, because we started with the original Macaroon secret `R` and thus know `T_n`, we decrypt the `VID`, recovering `r`. That gives us the secret we need to verify the discharge Macaroon. 
 
 The key things to understand here:
 
 1. We're not talking to third party services when we verify 3P caveats.
    Everything we need is in the Macaroons themselves.
    
-2. Technically, there doesn't even need to be a third-party service at all.
+2. 3P caveats are a contract between the caveat author and a third-party
+   service. The caveat author can be anyone, not just our APIs. 
+
+3. Technically, there doesn't even need to be a third-party service at all.
    You could make a "do-nothing" 3P caveat, just for funsies, by coming up
    with a random URL, `KA` and `r`, and then using them to mint a discharge 
    Macaroon at the same time. We'll never know there wasn't a real service.
    
-3. That's because we don't care what the third party service did. All we care
+4. That's because we don't care what the third party service did. All we care
    about is that whoever created the matching discharge Macaroon knew `KA`. We
    assume: if you know `KA`, you checked whatever it was the person who came up 
    with this 3P caveat wanted checked.
    
 This all sounds convoluted. It is super powerful. Think of it as a plugin interface for our tokens. You could use 3P tokens to:
 
-* Create a Slack bot with an HTTP POST interface that takes client tickets from 
-  Macaroons and then provides a discharge token if the right person     
-  thumbs-up-emojis a message on the right channel.
+* Create a Slack bot with an HTTP POST interface that takes caveat
+  tickets from Macaroons and then provides a discharge token if the
+  right person thumbs-up-emojis a message on the right channel.
   
 * Stand up a Passkeys service with an HTTP endpoint that will mint discharge
   tokens if the requester has authenticated with Passkeys. We don't even 
   support Passkeys yet at Fly.io. Except we do with Macaroons.
   
-* Requires a second person to approve requests before minting a discharge
+* Require a second person to approve requests before minting a discharge
   token, to use as a 3P caveat on Macaroons authorizing super-sensitive 
   operations.
 
@@ -369,14 +383,17 @@ This all sounds convoluted. It is super powerful. Think of it as a plugin interf
 This isn't user-servicable detail, but is ideally useful for people who work at Fly.io and at least a little interesting for people who don't.
 
 When we issue tokens to users, they always have a 3P auth caveat pointing to https://api.fly.io/aaa, which requires proof of authentication (either to a specific user, or to a member of a specific organization). This is a 
-nice property: it means that by default, every request we check is implicitly
+nice property: it means that by default, every request we handle is implicitly
 checking that a logged-in user is behind the request.
 
-Sometimes, though, you want some entity other than a user to carry out requests. 
+Sometimes, though, you want some entity other than a user to carry out actions. 
 
-What you don't want to do is to store the (root, auth) pair of tokens. There's two problems with that. First, that token pair will have a validity window that will expire the token, probably at an inconvenient time. More abstractly, That
-set forms a bearer token that can be used _by anyone_ to take actions in 
-our system, which is often not what you want.
+What you don't want to do is to store the (root, auth) pair of
+tokens. There's two problems with that. First, that token pair will
+have a `ValidityWindow` that will expire the token, probably at an
+inconvenient time. More abstractly, That set forms a bearer token that
+can be used _by anyone_ to take actions in our system, which is often
+not what you want.
 
 To accomodate this, `tkdb` exposes a "Service Token" API to anyone with 
 the Service Token Noise keypair. This API:
@@ -397,3 +414,50 @@ the Service Token Noise keypair. This API:
    requester.
    
 The requester now holds a token equivalently powerful to the original Macaroon, but with no expiry or authentication requirements. 
+
+## Glossary
+
+<dl>
+  <dt></dt>
+  <dd></dd>
+
+  <dt>Nonce</dt>
+  <dd>A random number (perhaps many thousands of bits wide) that is never re-used.</dd>
+
+  <dt>Bearer token/credential</dt>
+  <dd>A bearer token independently authorizes a request; there's no protocol that runs between the service the client to further authenticate, but rather, if you supply an acceptable bearer token, you've succeeded in authenticating it. Most tokens (see: OAuth2) are bearer tokens.</dd>
+
+  <dt>Attenuation</dt>
+  <dd>The process of adding additional caveats to an existing Macaroon to further restrict with that token allows; anybody can attenuate any Macaroon they have their hands on.</dd>
+
+  <dt>HMAC</dt>
+  <dd>A way of computing a SHA2 hash with a key; it can only be (1) computed or (2) checked by holders of that key.</dd>
+
+  <dt>HMAC Tag</dt>
+  <dd>The output of HMAC --- a SHA256 hash. Tags are just what the cool kids call HMAC hashes when you slap them onto messages to authenticate them..</dd>
+
+<dt>AEAD</dt>
+  <dd>A cipher that authenticates (tamper-proofs) in addition to encrypting it. Most modern cipher constructions express AEADs.</dd>
+
+  <dt>Caveat</dt>
+  <dd>A predicate that expresses some restriction on what actions can be taken, relative to an ambient state of "you can do anything at all, chaos reigns".</dd>
+
+  <dt>Third-party (3P) Caveat</dt>
+  <dd>An ordinary caveat directly encodes a restriction, like "you can only do read operations, not write operations". A 3P caveat is opaque: our API doesn't look into the guts of the caveat and try to interpret it. Rather, that caveat is satisfied by the client presenting an additional Macaroon token, the "discharge" token, cryptographically linked to the caveat, which proves that some authorized third party said "yep this is OK".</dd>
+
+  <dt>Discharge Macaroon</dt>
+  <dd>The token that clears a 3P caveat. A 3P caveat is a demand for a particular discharge token.</dd>
+  
+  <dt>Root Macaroon</dt>
+  <dd>Our ever-shifting terminology for Macaroon you start with, that defines what you can and can't do; the term "root Macaroon" exists to distinguish it from _discharge Macaroons_. We need better names for things.</dd>
+  
+  <dt>Auth Discharge Macaroon</dt>
+  <dd>A Discharge Macaroon issued from Fly.io's authentication endpoint; think of it as a translation gateway from Fly.io's standard authentication (which usually uses all-powerful OAuth2 tokens) to Macaroons.</dd>
+  
+  <dt>TKDB</dt>
+  <dd>The Fly.io ToKen DataBase. A distributed service we deploy on isolated hardware around the world to hold token secrets, so that our production hosts can verify, cache, and invalidate token signatures without pushing token secrets onto thousands of hosts.</dd>
+
+  <dt>VID and CID</dt>
+  <dd>The "tickets" in a 3P caveat. You only care about the CIDs, or "caveat tickets"; you tear off the CID from a 3P caveat and present it to the third-party service that discharges Macaroons for it; that service decrypts the ticket and uses it to build the discharge token.</dd>
+
+</dl>
