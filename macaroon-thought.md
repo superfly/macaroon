@@ -451,6 +451,8 @@ From that point on, the (service token, GQL 3P discharge) pair is sufficient to 
 Note again that in both use cases, the underlying principle is, we want internal components to be able to get service tokens to get jobs done, but only when the chain of events that kicked things off involved an authenticatable 
 user. Components in our prod environment cannot just randomly go off and make up tokens.
 
+One other thing to notice: in both cases, we end up with a service token that is pretty powerful (for instance, it's usable without an accompanying authentication token). Attenuation allows us to further restrict the token; for instance, the Machines API can take a service token and slap an additional caveat onto it that makes the token usable only from a particular Fly Machine on a particular worker host; it saves that token and throws away the original, scarier service token.
+
 ## Glossary
 
 <dl>
