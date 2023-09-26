@@ -429,6 +429,28 @@ the Service Token Noise keypair. This API:
    
 The requester now holds a token equivalently powerful to the original Macaroon, but with no expiry or authentication requirements. 
 
+Another instance of the "service token" problem occurs when our Machines API handles a request that's authenticated not with a Macaroon but with one of our old-school all-powerful OAuth2 tokens. The absolute last thing we want to do is store an OAuth2 token in some random-ass part of our prod environment so we can use it later on. What we do instead is use the OAuth2 token to create a service token on the fly. It's a little complicated, so bear with us:
+
+1. Our Machines API server can use the "Service Token" API to request 
+   a Macaroon with an arbitrary set of caveats, _without an accompanying
+   3P authentication caveat_. That sounds dangerous, right?
+   
+2. When TKDB mints that service token Macaroon, it instead adds a 3P 
+   caveat pointing to our GraphQL API server. That server can already
+   verify OAuth2 tokens. 
+   
+3. The Machines API server takes the newly-minted service token and presents
+   it to our GraphQL API, along with the OAuth2 token the original request
+   carried.
+   
+4. The GraphQL API server checks the OAuth2 token and discharges the 3P
+   caveat. 
+   
+From that point on, the (service token, GQL 3P discharge) pair is sufficient to authorize requests for the associated user.
+
+Note again that in both use cases, the underlying principle is, we want internal components to be able to get service tokens to get jobs done, but only when the chain of events that kicked things off involved an authenticatable 
+user. Components in our prod environment cannot just randomly go off and make up tokens.
+
 ## Glossary
 
 <dl>
@@ -474,5 +496,8 @@ a Noise transport (think: cool kid mTLS) to Fly.io components like `flyd`.</dd>
 
   <dt>VID and CID</dt>
   <dd>The "tickets" in a 3P caveat. You only care about the CIDs, or "caveat tickets"; you tear off the CID from a 3P caveat and present it to the third-party service that discharges Macaroons for it; that service decrypts the ticket and uses it to build the discharge token.</dd>
+
+  <dt>Service Tokens</dt>
+  <dd>A Service Token is a Macaroon used by a Machine or infrastructure component rather than a person. The difference between a Service Token and an ordinary Macaroon is that the ordinary Macaroon will almost always have an expiration date, and will always have a 3P caveat demanding authentication. A Service Token will have neither.</dd>
 
 </dl>
