@@ -427,7 +427,7 @@ the Service Token Noise keypair. This API:
 6. Mints a new Macaroon with that caveat set and hands it back to the
    requester.
    
-The requester now holds a token equivalently powerful to the original Macaroon, but with no expiry or authentication requirements. 
+The requester now holds a token equivalently powerful to the original Macaroon, but with no expiry or authentication requirements. `tkdb` can do this, because it's the closely-guarded component of our infrastructure that holds Macaroon keys. Minting service tokens from ordinary tokens is a service `tkdb` provides.
 
 Another instance of the "service token" problem occurs when our Machines API handles a request that's authenticated not with a Macaroon but with one of our old-school all-powerful OAuth2 tokens. The absolute last thing we want to do is store an OAuth2 token in some random-ass part of our prod environment so we can use it later on. What we do instead is use the OAuth2 token to create a service token on the fly. It's a little complicated, so bear with us:
 
