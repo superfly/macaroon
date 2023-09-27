@@ -73,7 +73,7 @@ to do that:
 * `ValidityWindow` sets expiry for a token.
 
 Note that you can take the token `(org=4721, mask=*)` and layer onto it
-a caveat like `(app=8910, mask=*)`, _even if app 8910 isn't in org `4721`_. That's fine! Every caveat must clear, so if you tried to use that token to access app 8910, the Organization caveat would reject the action, regardless of what the App caveat said.
+a caveat like `(app=8910, mask=*)`, _even if app `8910` isn't in org `4721`_. That's fine! Every caveat must clear, so if you tried to use that token to access app `8910`, the Organization caveat would reject the action, regardless of what the App caveat said.
 
 We currently recognize the following access mask bits:
 
@@ -138,7 +138,7 @@ issued from https://api.fly.io/aaa/v1, that satisfies `org=4721`.
 
 What this means is that the Macaroon above, which we'd call a "root Macaroon", can't do anything by itself. It's only useful in combination with a second Macaroon, the "authentication Macaroon", that proves you're logged in (in this case, to an account with access to org `4721`). 
 
-To get that authentication Macaroon, you need a root Macaroon, and a Fly.io login to an account that has the right access to an organization. If an attacker steals your root Macaroon from the mail, and they can get the matching authorization Macaroon, they probably already had the access they needed.
+To get that authentication Macaroon, you need a root Macaroon, and a Fly.io login to an account that has the right access to an organization. If an attacker steals your root Macaroon from the mail, and they can get the matching authentication Macaroon, they probably already had the access they needed.
 
 Our library code hides the flow, but the dance of actually using a Fly Macaroon is:
 
@@ -192,7 +192,7 @@ prepended so it's easy to grep for them, then joined with commas.
 Both our [GraphQL API](https://api.fly.io/graphql) and our 
 [Fly Machines API](https://fly.io/docs/machines/working-with-machines/) honor this `Authorization` header. 
 
-You can theoretically send an arbitrary bundle of Macaroon tokens in our Authorization heder, and let the API figure out which one matches.
+You can theoretically send an arbitrary bundle of Macaroon tokens in our Authorization header, and let the API figure out which one matches.
 
 ## Macaroon Attenuation
 
