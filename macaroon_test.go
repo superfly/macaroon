@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/alecthomas/assert/v2"
-	"github.com/stretchr/testify/require"
 	msgpack "github.com/vmihailenco/msgpack/v5"
 )
 
@@ -156,7 +155,7 @@ func TestMacaroons(t *testing.T) {
 		t.Helper()
 
 		mac, err = New(kid, loc, key)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		mac.Add(cavs...)
 
@@ -165,15 +164,15 @@ func TestMacaroons(t *testing.T) {
 		}
 
 		encoded, err = mac.Encode()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		for _, tp := range tpCavs {
 			found, _, dm, err := dischargeMacaroon(tp.key, tp.loc, encoded)
 			assert.True(t, found)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			dmBuf, err := dm.Encode()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			discharges = append(discharges, dmBuf)
 		}
@@ -186,7 +185,7 @@ func TestMacaroons(t *testing.T) {
 		}
 
 		decoded, err = Decode(encoded)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		decodedCavs = decoded.UnsafeCaveats.Caveats
 	}
@@ -198,7 +197,7 @@ func TestMacaroons(t *testing.T) {
 		}
 
 		verifiedCavs, err = decoded.Verify(key, discharges, nil)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}
 
 	t.Run("decode", func(t *testing.T) {
@@ -293,10 +292,10 @@ func TestMacaroons(t *testing.T) {
 
 		found, _, dm, err := dischargeMacaroon(tpKey, tpLoc, encoded)
 		assert.True(t, found)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		discharges[0], err = dm.Encode()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		requireVerify(t)
 	})
@@ -341,24 +340,24 @@ func TestMacaroons(t *testing.T) {
 		unboundDischarge := discharges[0]
 
 		cids, err := decoded.ThirdPartyCIDs()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		cid := cids["other loc"]
 
 		rcid, err := unseal(tpKey, cid)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		wcid := &wireCID{}
-		require.NoError(t, msgpack.Unmarshal(rcid, wcid))
+		assert.NoError(t, msgpack.Unmarshal(rcid, wcid))
 
 		dum, err := Decode(unboundDischarge)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		_, err = dum.verify(wcid.RN, nil, nil, true, nil)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		_, err = dum.verify(wcid.RN, nil, [][]byte{{123}}, true, nil)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("verify - bound discharge token", func(t *testing.T) {
@@ -374,12 +373,12 @@ func TestMacaroons(t *testing.T) {
 
 		found, _, dm, err := dischargeMacaroon(tpKey, tpLoc, encoded)
 		assert.True(t, found)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
-		require.NoError(t, dm.Bind(encoded))
+		assert.NoError(t, dm.Bind(encoded))
 
 		discharges[0], err = dm.Encode()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		requireVerify(t)
 	})
@@ -397,18 +396,18 @@ func TestMacaroons(t *testing.T) {
 
 		found, _, dm, err := dischargeMacaroon(tpKey, tpLoc, encoded)
 		assert.True(t, found)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
-		require.NoError(t, dm.Bind(encoded))
+		assert.NoError(t, dm.Bind(encoded))
 		dm.Add(&BindToParentToken{0xde, 0xad, 0xbe, 0xef})
 
 		discharges[0], err = dm.Encode()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		requireDecode(t)
 
 		_, err = decoded.Verify(key, discharges, nil)
-		require.Error(t, err)
+		assert.Error(t, err)
 	})
 }
 
@@ -424,29 +423,29 @@ func Test3pe2e(t *testing.T) {
 			)
 
 			m, err := New(kid, "https://api.fly.io", key)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
-			require.NoError(t, m.Add(cavParent(ActionRead|ActionWrite, 110)))
-			require.NoError(t, m.Add3P(ka, authLoc))
+			assert.NoError(t, m.Add(cavParent(ActionRead|ActionWrite, 110)))
+			assert.NoError(t, m.Add3P(ka, authLoc))
 			rBuf, err := m.Encode()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			rm, err := Decode(rBuf)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			tps, err := rm.ThirdPartyCIDs()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			cid := tps[authLoc]
 			_, dm, err := dischargeCID(ka, authLoc, cid, isProof)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
-			require.NoError(t, dm.Add(cavExpiry(5*time.Minute)))
+			assert.NoError(t, dm.Add(cavExpiry(5*time.Minute)))
 			aBuf, err := dm.Encode()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			verifiedCavs, err := rm.Verify(key, [][]byte{aBuf}, nil)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			_, _, err = dischargeCID(ka, authLoc, cid, isProof)
 			assert.NoError(t, err)
@@ -506,37 +505,37 @@ func TestSimple3P(t *testing.T) {
 			)
 
 			m, err := New(kid, rootLoc, rootKey)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
-			require.NoError(t, m.Add(cavParent(ActionRead, 1010)))
-			require.NoError(t, m.Add3P(ka, authLoc))
+			assert.NoError(t, m.Add(cavParent(ActionRead, 1010)))
+			assert.NoError(t, m.Add3P(ka, authLoc))
 			rBuf, err := m.Encode()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			decoded, err := Decode(rBuf)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			tps, err := decoded.ThirdPartyCIDs()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			cid := tps[authLoc]
 
 			_, dm, err := dischargeCID(ka, authLoc, cid, isProof)
-			require.NoError(t, err)
-			require.NoError(t, dm.Add(cavExpiry(5*time.Minute)))
+			assert.NoError(t, err)
+			assert.NoError(t, dm.Add(cavExpiry(5*time.Minute)))
 			aBuf, err := dm.Encode()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			_, err = Decode(aBuf)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			verifiedCavs, err := decoded.Verify(rootKey, [][]byte{aBuf}, nil)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			err = verifiedCavs.Validate(&testAccess{
 				parentResource: ptr(uint64(1010)),
 				action:         ActionRead,
 			})
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		})
 	}
 }

@@ -8,18 +8,18 @@ import (
 )
 
 const (
-	CavOrganization        = 0
-	CavVolumes             = 2
-	CavApps                = 3
-	CavFeatureSet          = 5
-	CavMutations           = 6
-	CavMachines            = 7
-	CavConfineUser         = 8
-	CavConfineOrganization = 9
-	CavIsUser              = 10
-	CavMachineFeatureSet   = 14
-	CavFromMachineSource   = 15
-	CavClusters            = 16
+	CavOrganization        = macaroon.CavFlyioOrganization
+	CavVolumes             = macaroon.CavFlyioVolumes
+	CavApps                = macaroon.CavFlyioApps
+	CavFeatureSet          = macaroon.CavFlyioFeatureSet
+	CavMutations           = macaroon.CavFlyioMutations
+	CavMachines            = macaroon.CavFlyioMachines
+	CavConfineUser         = macaroon.CavFlyioConfineUser
+	CavConfineOrganization = macaroon.CavFlyioConfineOrganization
+	CavIsUser              = macaroon.CavFlyioIsUser
+	CavMachineFeatureSet   = macaroon.CavFlyioMachineFeatureSet
+	CavFromMachineSource   = macaroon.CavFlyioFromMachineSource
+	CavClusters            = macaroon.CavFlyioClusters
 )
 
 type FromMachine struct {
@@ -51,7 +51,11 @@ type Organization struct {
 	Mask resset.Action `json:"mask"`
 }
 
-func init()                                             { macaroon.RegisterCaveatType(&Organization{}) }
+func init() {
+	macaroon.RegisterCaveatType(&Organization{})
+	macaroon.RegisterCaveatJSONAlias(CavOrganization, "DeprecatedOrganization")
+}
+
 func (c *Organization) CaveatType() macaroon.CaveatType { return CavOrganization }
 func (c *Organization) Name() string                    { return "Organization" }
 
@@ -61,10 +65,10 @@ func (c *Organization) Prohibits(a macaroon.Access) error {
 	switch {
 	case !isFlyioAccess:
 		return macaroon.ErrInvalidAccess
-	case f.OrgID == 0:
+	case f.DeprecatedOrgID == nil:
 		return fmt.Errorf("%w org", resset.ErrResourceUnspecified)
-	case c.ID != f.OrgID:
-		return fmt.Errorf("%w org %d, only %d", resset.ErrUnauthorizedForResource, f.OrgID, c.ID)
+	case c.ID != *f.DeprecatedOrgID:
+		return fmt.Errorf("%w org %d, only %d", resset.ErrUnauthorizedForResource, f.DeprecatedOrgID, c.ID)
 	case !f.Action.IsSubsetOf(c.Mask):
 		return fmt.Errorf("%w access %s (%s not allowed)", resset.ErrUnauthorizedForAction, f.Action, f.Action.Remove(c.Mask))
 	default:
@@ -108,7 +112,11 @@ type Apps struct {
 	Apps resset.ResourceSet[uint64] `json:"apps"`
 }
 
-func init()                                     { macaroon.RegisterCaveatType(&Apps{}) }
+func init() {
+	macaroon.RegisterCaveatType(&Apps{})
+	macaroon.RegisterCaveatJSONAlias(CavApps, "DeprecatedApps")
+}
+
 func (c *Apps) CaveatType() macaroon.CaveatType { return CavApps }
 func (c *Apps) Name() string                    { return "Apps" }
 
@@ -117,7 +125,7 @@ func (c *Apps) Prohibits(a macaroon.Access) error {
 	if !isFlyioAccess {
 		return macaroon.ErrInvalidAccess
 	}
-	return c.Apps.Prohibits(f.AppID, f.Action)
+	return c.Apps.Prohibits(f.DeprecatedAppID, f.Action)
 }
 
 type Volumes struct {

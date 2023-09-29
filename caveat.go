@@ -13,23 +13,23 @@ import (
 type CaveatType uint64
 
 const (
-	_ CaveatType = iota // fly.io reserved
-	_                   // fly.io reserved
-	_                   // fly.io reserved
-	_                   // fly.io reserved
+	CavFlyioOrganization CaveatType = iota
+	_                               // deprecated
+	CavFlyioVolumes
+	CavFlyioApps
 	CavValidityWindow
-	_ // fly.io reserved
-	_ // fly.io reserved
-	_ // fly.io reserved
-	_ // fly.io reserved
-	_ // fly.io reserved
-	_ // fly.io reserved
+	CavFlyioFeatureSet
+	CavFlyioMutations
+	CavFlyioMachines
+	CavFlyioConfineUser
+	CavFlyioConfineOrganization
+	CavFlyioIsUser
 	Cav3P
 	CavBindToParentToken
 	CavIfPresent
-	_ // fly.io reserved
-	_ // fly.io reserved
-	_ // fly.io reserved
+	CavFlyioMachineFeatureSet
+	CavFlyioFromMachineSource
+	CavFlyioClusters
 	_ // fly.io reserved
 	_ // fly.io reserved
 
@@ -107,6 +107,18 @@ func RegisterCaveatType(zeroValue Caveat) {
 	t2c[typ] = zeroValue
 	t2s[typ] = name
 	s2t[name] = typ
+}
+
+// Register an alternate name for this caveat type that will be recognized when
+// decoding JSON.
+func RegisterCaveatJSONAlias(typ CaveatType, alias string) {
+	if _, dup := s2t[alias]; dup {
+		panic("duplicate caveat type")
+	}
+	if _, exist := t2s[typ]; !exist {
+		panic("unregistered caveat type")
+	}
+	s2t[alias] = typ
 }
 
 func typeToCaveat(t CaveatType) (Caveat, error) {
