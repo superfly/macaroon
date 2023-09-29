@@ -74,6 +74,7 @@ See the \`flyio\` package for more details.
 - [func IsAttestation\(c Caveat\) bool](<#IsAttestation>)
 - [func Parse\(header string\) \(\[\]\[\]byte, error\)](<#Parse>)
 - [func ParsePermissionAndDischargeTokens\(header string, location string\) \(\[\]byte, \[\]\[\]byte, error\)](<#ParsePermissionAndDischargeTokens>)
+- [func RegisterCaveatJSONAlias\(typ CaveatType, alias string\)](<#RegisterCaveatJSONAlias>)
 - [func RegisterCaveatType\(zeroValue Caveat\)](<#RegisterCaveatType>)
 - [func ThirdPartyCID\(encodedMacaroon \[\]byte, thirdPartyLocation string\) \(\[\]byte, error\)](<#ThirdPartyCID>)
 - [func ToAuthorizationHeader\(toks ...\[\]byte\) string](<#ToAuthorizationHeader>)
@@ -130,29 +131,6 @@ See the \`flyio\` package for more details.
 
 ## Constants
 
-<a name="CavValidityWindow"></a>
-
-```go
-const (
-    CavValidityWindow
-
-    Cav3P
-    CavBindToParentToken
-    CavIfPresent
-
-    // Globally-recognized user-registerable caveat types may be requested via
-    // pull requests to this repository. Add a meaningful name of the caveat
-    // type (e.g. CavAcmeCorpWidgetID) on the line prior to
-    // CavMaxUserRegisterable.
-    CavMinUserRegisterable = 1 << 32
-    CavMaxUserRegisterable = 1<<48 - 1
-
-    CavMinUserDefined = 1 << 48
-    CavMaxUserDefined = 1<<64 - 2
-    CavUnregistered   = 1<<64 - 1
-)
-```
-
 <a name="EncryptionKeySize"></a>
 
 ```go
@@ -167,11 +145,10 @@ const (
 
 ```go
 var (
-    ErrUnrecognizedToken          = errors.New("bad token")
-    ErrUnauthorized               = errors.New("unauthorized")
-    ErrInvalidAccess              = fmt.Errorf("%w: bad data for token verification", ErrUnauthorized)
-    ErrResourcesMutuallyExclusive = fmt.Errorf("%w: resources are mutually exclusive", ErrInvalidAccess)
-    ErrBadCaveat                  = fmt.Errorf("%w: bad caveat", ErrUnauthorized)
+    ErrUnrecognizedToken = errors.New("bad token")
+    ErrUnauthorized      = errors.New("unauthorized")
+    ErrInvalidAccess     = fmt.Errorf("%w: bad data for token verification", ErrUnauthorized)
+    ErrBadCaveat         = fmt.Errorf("%w: bad caveat", ErrUnauthorized)
 )
 ```
 
@@ -228,6 +205,15 @@ func ParsePermissionAndDischargeTokens(header string, location string) ([]byte, 
 ```
 
 Parse a string token and find the contained permission token for the given location.
+
+<a name="RegisterCaveatJSONAlias"></a>
+## func RegisterCaveatJSONAlias
+
+```go
+func RegisterCaveatJSONAlias(typ CaveatType, alias string)
+```
+
+Register an alternate name for this caveat type that will be recognized when decoding JSON.
 
 <a name="RegisterCaveatType"></a>
 ## func RegisterCaveatType
@@ -485,6 +471,41 @@ A numeric identifier for caveat types. Values less than CavMinUserRegisterable \
 
 ```go
 type CaveatType uint64
+```
+
+<a name="CavFlyioOrganization"></a>
+
+```go
+const (
+    CavFlyioOrganization CaveatType = iota
+
+    CavFlyioVolumes
+    CavFlyioApps
+    CavValidityWindow
+    CavFlyioFeatureSet
+    CavFlyioMutations
+    CavFlyioMachines
+    CavFlyioConfineUser
+    CavFlyioConfineOrganization
+    CavFlyioIsUser
+    Cav3P
+    CavBindToParentToken
+    CavIfPresent
+    CavFlyioMachineFeatureSet
+    CavFlyioFromMachineSource
+    CavFlyioClusters
+
+    // Globally-recognized user-registerable caveat types may be requested via
+    // pull requests to this repository. Add a meaningful name of the caveat
+    // type (e.g. CavAcmeCorpWidgetID) on the line prior to
+    // CavMaxUserRegisterable.
+    CavMinUserRegisterable = 1 << 32
+    CavMaxUserRegisterable = 1<<48 - 1
+
+    CavMinUserDefined = 1 << 48
+    CavMaxUserDefined = 1<<64 - 2
+    CavUnregistered   = 1<<64 - 1
+)
 ```
 
 <a name="EncryptionKey"></a>
