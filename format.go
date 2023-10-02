@@ -91,7 +91,7 @@ func FindPermissionAndDischargeTokens(tokens [][]byte, location string) ([]*Maca
 		if m, err := Decode(token); err == nil && m.Location == location {
 			permissionMacaroons = append(permissionMacaroons, m)
 			permissionTokens = append(permissionTokens, token)
-		} else {
+		} else if err == nil {
 			dischargeTokens = append(dischargeTokens, token)
 			dischargeMacaroons = append(dischargeMacaroons, m)
 		}
