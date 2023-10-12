@@ -26,7 +26,7 @@ An ordinary caveat is checked by looking at the request and the caveat and seein
 
 A "third party \(3P\)" caveat works differently. 3P caveats demand that some other named system validate the request.
 
-Users extract a little ticket from the 3P caveat \(that ticket is called a "CID"\) and hands it to the third party, along with anything else the third party might want. That third party resolves the caveat by generating a "discharge Macaroon", which is a whole 'nother token, tied cryptographically to the original 3P caveat. The user then presents both the original Macaroon and the discharge Macaroon with their request.
+Users extract a little ticket from the 3P caveat and hands it to the third party, along with anything else the third party might want. That third party resolves the caveat by generating a "discharge Macaroon", which is a whole 'nother token, tied cryptographically to the original 3P caveat. The user then presents both the original Macaroon and the discharge Macaroon with their request.
 
 For instance: most Fly.io Macaroons require a logged\-in user \(usually a member of a particular organization\). We express that with a 3P caveat pointing to our authentication endpoint. That endpoint checks to see who you're logged in as, and produces an appropriate discharge, which accompanies the original Macaroon and \(in effect\) attests to you being logged in.
 
@@ -68,7 +68,7 @@ See the \`flyio\` package for more details.
 
 - [Constants](<#constants>)
 - [Variables](<#variables>)
-- [func DischargeCID\(ka EncryptionKey, location string, cid \[\]byte\) \(\[\]Caveat, \*Macaroon, error\)](<#DischargeCID>)
+- [func DischargeTicket\(ka EncryptionKey, location string, ticket \[\]byte\) \(\[\]Caveat, \*Macaroon, error\)](<#DischargeTicket>)
 - [func FindPermissionAndDischargeTokens\(tokens \[\]\[\]byte, location string\) \(\[\]\*Macaroon, \[\]\[\]byte, \[\]\*Macaroon, \[\]\[\]byte, error\)](<#FindPermissionAndDischargeTokens>)
 - [func GetCaveats\[T Caveat\]\(c \*CaveatSet\) \(ret \[\]T\)](<#GetCaveats>)
 - [func IsAttestation\(c Caveat\) bool](<#IsAttestation>)
@@ -76,7 +76,7 @@ See the \`flyio\` package for more details.
 - [func ParsePermissionAndDischargeTokens\(header string, location string\) \(\[\]byte, \[\]\[\]byte, error\)](<#ParsePermissionAndDischargeTokens>)
 - [func RegisterCaveatJSONAlias\(typ CaveatType, alias string\)](<#RegisterCaveatJSONAlias>)
 - [func RegisterCaveatType\(zeroValue Caveat\)](<#RegisterCaveatType>)
-- [func ThirdPartyCID\(encodedMacaroon \[\]byte, thirdPartyLocation string\) \(\[\]byte, error\)](<#ThirdPartyCID>)
+- [func ThirdPartyTicket\(encodedMacaroon \[\]byte, thirdPartyLocation string\) \(\[\]byte, error\)](<#ThirdPartyTicket>)
 - [func ToAuthorizationHeader\(toks ...\[\]byte\) string](<#ToAuthorizationHeader>)
 - [func Validate\[A Access\]\(cs \*CaveatSet, accesses ...A\) error](<#Validate>)
 - [type Access](<#Access>)
@@ -111,8 +111,8 @@ See the \`flyio\` package for more details.
   - [func \(m \*Macaroon\) BindToParentMacaroon\(parent \*Macaroon\) error](<#Macaroon.BindToParentMacaroon>)
   - [func \(m \*Macaroon\) Encode\(\) \(\[\]byte, error\)](<#Macaroon.Encode>)
   - [func \(m \*Macaroon\) Expiration\(\) time.Time](<#Macaroon.Expiration>)
-  - [func \(m \*Macaroon\) ThirdPartyCID\(location string, existingDischarges ...\[\]byte\) \(\[\]byte, error\)](<#Macaroon.ThirdPartyCID>)
-  - [func \(m \*Macaroon\) ThirdPartyCIDs\(existingDischarges ...\[\]byte\) \(map\[string\]\[\]byte, error\)](<#Macaroon.ThirdPartyCIDs>)
+  - [func \(m \*Macaroon\) ThirdPartyTicket\(location string, existingDischarges ...\[\]byte\) \(\[\]byte, error\)](<#Macaroon.ThirdPartyTicket>)
+  - [func \(m \*Macaroon\) ThirdPartyTickets\(existingDischarges ...\[\]byte\) \(map\[string\]\[\]byte, error\)](<#Macaroon.ThirdPartyTickets>)
   - [func \(m \*Macaroon\) Verify\(k SigningKey, discharges \[\]\[\]byte, trusted3Ps map\[string\]EncryptionKey\) \(\*CaveatSet, error\)](<#Macaroon.Verify>)
 - [type Nonce](<#Nonce>)
   - [func DecodeNonce\(buf \[\]byte\) \(Nonce, error\)](<#DecodeNonce>)
@@ -152,14 +152,14 @@ var (
 )
 ```
 
-<a name="DischargeCID"></a>
-## func DischargeCID
+<a name="DischargeTicket"></a>
+## func DischargeTicket
 
 ```go
-func DischargeCID(ka EncryptionKey, location string, cid []byte) ([]Caveat, *Macaroon, error)
+func DischargeTicket(ka EncryptionKey, location string, ticket []byte) ([]Caveat, *Macaroon, error)
 ```
 
-Decyrpts the CID from the 3p caveat and prepares a discharge token. Returned caveats, if any, must be validated before issuing the discharge token to the user.
+Decyrpts the ticket from the 3p caveat and prepares a discharge token. Returned caveats, if any, must be validated before issuing the discharge token to the user.
 
 <a name="FindPermissionAndDischargeTokens"></a>
 ## func FindPermissionAndDischargeTokens
@@ -224,14 +224,14 @@ func RegisterCaveatType(zeroValue Caveat)
 
 Register a caveat type for use with this library.
 
-<a name="ThirdPartyCID"></a>
-## func ThirdPartyCID
+<a name="ThirdPartyTicket"></a>
+## func ThirdPartyTicket
 
 ```go
-func ThirdPartyCID(encodedMacaroon []byte, thirdPartyLocation string) ([]byte, error)
+func ThirdPartyTicket(encodedMacaroon []byte, thirdPartyLocation string) ([]byte, error)
 ```
 
-Checks the macaroon for a third party caveat for the specified location. Returns the caveat's encrypted CID, if found.
+Checks the macaroon for a third party caveat for the specified location. Returns the caveat's encrypted ticket, if found.
 
 <a name="ToAuthorizationHeader"></a>
 ## func ToAuthorizationHeader
@@ -347,9 +347,9 @@ Caveat3P is a requirement that the token be presented along with a 3P discharge 
 
 ```go
 type Caveat3P struct {
-    Location string
-    VID      []byte // used by the initial issuer to verify discharge macaroon
-    CID      []byte // used by the 3p service to construct discharge macaroon
+    Location    string
+    VerifierKey []byte // used by the initial issuer to verify discharge macaroon
+    Ticket      []byte // used by the 3p service to construct discharge macaroon
     // contains filtered or unexported fields
 }
 ```
@@ -631,27 +631,27 @@ func (m *Macaroon) Expiration() time.Time
 
 Expiration calculates when this macaroon will expire
 
-<a name="Macaroon.ThirdPartyCID"></a>
-### func \(\*Macaroon\) ThirdPartyCID
+<a name="Macaroon.ThirdPartyTicket"></a>
+### func \(\*Macaroon\) ThirdPartyTicket
 
 ```go
-func (m *Macaroon) ThirdPartyCID(location string, existingDischarges ...[]byte) ([]byte, error)
+func (m *Macaroon) ThirdPartyTicket(location string, existingDischarges ...[]byte) ([]byte, error)
 ```
 
-ThirdPartyCID returns the CID \(see \[Macaron.ThirdPartyCIDs\]\) associated with a URL location, if possible.
+ThirdPartyTicket returns the ticket \(see \[Macaron.ThirdPartyTickets\]\) associated with a URL location, if possible.
 
-<a name="Macaroon.ThirdPartyCIDs"></a>
-### func \(\*Macaroon\) ThirdPartyCIDs
+<a name="Macaroon.ThirdPartyTickets"></a>
+### func \(\*Macaroon\) ThirdPartyTickets
 
 ```go
-func (m *Macaroon) ThirdPartyCIDs(existingDischarges ...[]byte) (map[string][]byte, error)
+func (m *Macaroon) ThirdPartyTickets(existingDischarges ...[]byte) (map[string][]byte, error)
 ```
 
-ThirdPartyCIDs extracts the encrypted CIDs from a token's third party caveats.
+ThirdPartyTickets extracts the encrypted tickets from a token's third party caveats.
 
-The CID of a third\-party caveat is a little ticket embedded in the caveat that is readable by the third\-party service for which it's intended. That service uses the CID to generate a compatible discharge token to satisfy the caveat.
+The ticket of a third\-party caveat is a little ticket embedded in the caveat that is readable by the third\-party service for which it's intended. That service uses the ticket to generate a compatible discharge token to satisfy the caveat.
 
-Macaroon services of all types are identified by their "location", which in our scheme is always a URL. ThirdPartyCIDs returns a map of location to CID. In a perfect world, you could iterate over this map hitting each URL and passing it the associated CID, collecting all the discharge tokens you need for the request \(it is never that simple, though\).
+Macaroon services of all types are identified by their "location", which in our scheme is always a URL. ThirdPartyTickets returns a map of location to ticket. In a perfect world, you could iterate over this map hitting each URL and passing it the associated ticket, collecting all the discharge tokens you need for the request \(it is never that simple, though\).
 
 Already\-discharged caveats are excluded from the results.
 
