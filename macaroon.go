@@ -576,3 +576,13 @@ func (m *Macaroon) Expiration() time.Time {
 
 	return ret
 }
+
+// String encoded token with `fm2_` prefix.
+func (m *Macaroon) String() (string, error) {
+	tok, err := m.Encode()
+	if err != nil {
+		return "", err
+	}
+
+	return encodeTokens(tok), nil
+}

@@ -5,6 +5,7 @@ go 1.20
 require (
 	github.com/alecthomas/assert/v2 v2.3.0
 	github.com/google/uuid v1.3.0
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/sirupsen/logrus v1.9.3
 	github.com/vmihailenco/msgpack/v5 v5.3.5
 	golang.org/x/crypto v0.12.0

@@ -41,7 +41,11 @@ Set-Cookie: <principal-cookie>
 
 {
     "discharge": "base64 encoded discharge macaroon",
-    "poll": "/url/or/path/to/poll",
+    "poll_url": "/url/or/path/to/poll",
+    "user_interactive": {
+        "user_url": "<url to navigate user to>",
+        "poll_url": "<absolute or relative url to poll>"
+    }
 }
 ```
 
