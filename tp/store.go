@@ -12,9 +12,9 @@ import (
 )
 
 type StoreData struct {
-	Ticket []byte
-	Ready  bool
-	Error  string
+	Ticket         []byte
+	ResponseStatus int
+	ResponseBody   []byte
 }
 
 type Store interface {
@@ -104,7 +104,7 @@ func (s *MemoryStore) secret() []byte {
 	return s._secret
 }
 
-func digest(d string) string {
+func digest[T string | []byte](d T) string {
 	digest := blake2b.Sum256([]byte(d))
 	return hex.EncodeToString(digest[:])
 }

@@ -38,20 +38,20 @@ func DischargeTicket(ka EncryptionKey, location string, ticket []byte) ([]Caveat
 
 // discharge macaroons will be proofs moving forward, but we need to be able to test the old non-proof dms too
 func dischargeTicket(ka EncryptionKey, location string, ticket []byte, issueProof bool) ([]Caveat, *Macaroon, error) {
-	ticketr, err := unseal(ka, ticket)
+	tRaw, err := unseal(ka, ticket)
 	if err != nil {
 		return nil, nil, fmt.Errorf("recover for discharge: ticket decrypt: %w", err)
 	}
 
-	tticket := &wireTicket{}
-	if err = msgpack.Unmarshal(ticketr, tticket); err != nil {
+	tWire := &wireTicket{}
+	if err = msgpack.Unmarshal(tRaw, tWire); err != nil {
 		return nil, nil, fmt.Errorf("recover for discharge: ticket decode: %w", err)
 	}
 
-	dm, err := newMacaroon(ticket, location, tticket.DischargeKey, issueProof)
+	dm, err := newMacaroon(ticket, location, tWire.DischargeKey, issueProof)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return tticket.Caveats.Caveats, dm, nil
+	return tWire.Caveats.Caveats, dm, nil
 }

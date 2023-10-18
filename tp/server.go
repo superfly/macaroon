@@ -15,7 +15,6 @@ import (
 )
 
 type flowData struct {
-	tid       string
 	ticket    []byte
 	caveats   []macaroon.Caveat
 	discharge *macaroon.Macaroon
@@ -68,7 +67,7 @@ func (tp *TP) HandlePollRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !sd.Ready {
+	if sd.ResponseBody == nil || sd.ResponseStatus == 0 {
 		tp.RespondError(w, r, http.StatusAccepted, "not ready")
 		return
 	}
@@ -79,12 +78,18 @@ func (tp *TP) HandlePollRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if sd.Error != "" {
-		tp.RespondError(w, r, http.StatusOK, sd.Error)
+	log := tp.getLog(r).WithFields(logrus.Fields{
+		"status": sd.ResponseStatus,
+		"resp":   "discharge",
+	})
+
+	w.WriteHeader(sd.ResponseStatus)
+	if _, err := w.Write(sd.ResponseBody); err != nil {
+		log.WithError(err).Warn("writing response")
 		return
 	}
 
-	tp.respondDischarge(w, r, "discharge")
+	log.Info()
 }
 
 func (tp *TP) UserRequestMiddleware(next http.Handler) http.Handler {
@@ -118,7 +123,7 @@ func (tp *TP) UserRequestMiddleware(next http.Handler) http.Handler {
 }
 
 func (tp *TP) RespondError(w http.ResponseWriter, r *http.Request, statusCode int, msg string) {
-	tp.respond(w, r, "error", statusCode, &jsonInitResponse{
+	tp.respond(w, r, "error", statusCode, &jsonResponse{
 		Error: msg,
 	})
 }
@@ -146,62 +151,163 @@ func (tp *TP) respondDischarge(w http.ResponseWriter, r *http.Request, respType 
 		return
 	}
 
-	tp.respond(w, r, respType, http.StatusCreated, &jsonInitResponse{
+	tp.respond(w, r, respType, http.StatusCreated, &jsonResponse{
 		Discharge: tok,
 	})
 }
 
-func (tp *TP) RespondPoll(w http.ResponseWriter, r *http.Request) {
+func (tp *TP) RespondPoll(w http.ResponseWriter, r *http.Request) string {
 	var (
 		fd    = tp.fdOrError(w, r)
 		store = tp.storeOrError(w, r)
 	)
 	if fd == nil || store == nil {
-		return
+		return ""
 	}
 
 	_, pollSecret, err := store.Put(&StoreData{Ticket: fd.ticket})
 	if err != nil {
 		tp.getLog(r).WithError(err).Warn("store put")
 		http.Error(w, `{"error": "internal server error"}`, http.StatusInternalServerError)
-		return
+		return ""
 	}
 
-	tp.respond(w, r, "poll", http.StatusCreated, &jsonInitResponse{
+	tp.respond(w, r, "poll", http.StatusCreated, &jsonResponse{
 		PollURL: tp.url("/poll/" + url.PathEscape(pollSecret)),
 	})
+
+	return pollSecret
 }
 
-func (tp *TP) RespondUserInteractive(w http.ResponseWriter, r *http.Request) {
+func (tp *TP) DischargePoll(pollSecret string, caveats ...macaroon.Caveat) error {
+	return tp.dischargePoller(pollSecret, "", caveats...)
+}
+
+func (tp *TP) AbortPoll(pollSecret string, message string) error {
+	return tp.abortPoller(pollSecret, "", message)
+}
+
+func (tp *TP) RespondUserInteractive(w http.ResponseWriter, r *http.Request) string {
 	var (
 		fd    = tp.fdOrError(w, r)
 		store = tp.storeOrError(w, r)
 	)
 	if fd == nil || store == nil {
-		return
+		return ""
 	}
 
 	userSecret, pollSecret, err := store.Put(&StoreData{Ticket: fd.ticket})
 	if err != nil {
 		tp.getLog(r).WithError(err).Warn("store put")
 		http.Error(w, `{"error": "internal server error"}`, http.StatusInternalServerError)
-		return
+		return ""
 	}
 
-	tp.respond(w, r, "user-interactive", http.StatusCreated, &jsonInitResponse{
+	tp.respond(w, r, "user-interactive", http.StatusCreated, &jsonResponse{
 		UserInteractive: &jsonUserInteractive{
 			PollURL: tp.url("/poll/" + pollSecret),
 			UserURL: store.UserSecretToURL(userSecret),
 		},
 	})
+
+	return userSecret
 }
 
-func (tp *TP) respond(w http.ResponseWriter, r *http.Request, respType string, statusCode int, jresp *jsonInitResponse) {
+func (tp *TP) DischargeUserInteractive(userSecret string, caveats ...macaroon.Caveat) error {
+	return tp.dischargePoller("", userSecret, caveats...)
+}
+
+func (tp *TP) AbortUserInteractive(userSecret string, message string) error {
+	return tp.abortPoller("", userSecret, message)
+}
+
+func (tp *TP) dischargePoller(pollSecret, userSecret string, caveats ...macaroon.Caveat) error {
+	if tp.Store == nil {
+		return errors.New("no store")
+	}
+
+	var (
+		sd  *StoreData
+		err error
+	)
+	if pollSecret != "" {
+		sd, err = tp.Store.GetByPollSecret(pollSecret)
+	} else {
+		sd, err = tp.Store.GetByUserSecret(userSecret)
+	}
+	if err != nil {
+		return err
+	}
+
+	fd, err := tp.newFD(nil, "background", sd.Ticket)
+	if err != nil {
+		return err
+	}
+
+	if err := fd.discharge.Add(caveats...); err != nil {
+		return err
+	}
+
+	tok, err := fd.discharge.String()
+	if err != nil {
+		return err
+	}
+
+	jresp, err := json.Marshal(&jsonResponse{Discharge: tok})
+	if err != nil {
+		return err
+	}
+
+	sd.ResponseBody = jresp
+	sd.ResponseStatus = http.StatusOK
+
+	if _, _, err := tp.Store.Put(sd); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (tp *TP) abortPoller(pollSecret, userSecret string, message string) error {
+	if tp.Store == nil {
+		return errors.New("no store")
+	}
+
+	var (
+		sd  *StoreData
+		err error
+	)
+	if pollSecret != "" {
+		sd, err = tp.Store.GetByPollSecret(pollSecret)
+	} else {
+		sd, err = tp.Store.GetByUserSecret(userSecret)
+	}
+	if err != nil {
+		return err
+	}
+
+	jresp, err := json.Marshal(&jsonResponse{Error: message})
+	if err != nil {
+		return err
+	}
+
+	sd.ResponseBody = jresp
+	sd.ResponseStatus = http.StatusOK
+
+	if _, _, err := tp.Store.Put(sd); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (tp *TP) respond(w http.ResponseWriter, r *http.Request, respType string, statusCode int, jresp *jsonResponse) {
 	log := tp.getLog(r).WithFields(logrus.Fields{
 		"status": statusCode,
 		"resp":   respType,
 	})
 
+	w.WriteHeader(statusCode)
 	if err := json.NewEncoder(w).Encode(jresp); err != nil {
 		log.WithError(err).Warn("writing response")
 		return
@@ -223,26 +329,33 @@ func CaveatsFromRequest(r *http.Request) ([]macaroon.Caveat, error) {
 }
 
 func (tp *TP) newFDOrError(w http.ResponseWriter, r *http.Request, reqType string, ticket []byte) (*flowData, *http.Request) {
-	log := tp.getLog(r).WithField("req", reqType)
-
-	caveats, discharge, err := macaroon.DischargeTicket(tp.Key, tp.Location, ticket)
+	fd, err := tp.newFD(r, reqType, ticket)
 	if err != nil {
-		log.WithError(err).Warn("decrypt ticket")
+		tp.getLog(r).WithError(err).Warn("recover ticket")
 		http.Error(w, `{"error": "internal server error"}`, http.StatusInternalServerError)
 		return nil, r
 	}
 
-	id := discharge.Nonce.UUID().String()
+	ctx := context.WithValue(r.Context(), contextKeyFlowData, fd)
+	return fd, r.WithContext(ctx)
+}
+
+func (tp *TP) newFD(r *http.Request, reqType string, ticket []byte) (*flowData, error) {
+	log := tp.getLog(r).WithField("req", reqType)
+
+	caveats, discharge, err := macaroon.DischargeTicket(tp.Key, tp.Location, ticket)
+	if err != nil {
+		return nil, err
+	}
+
 	fd := &flowData{
-		tid:       id,
 		ticket:    ticket,
 		caveats:   caveats,
 		discharge: discharge,
-		log:       log.WithField("tid", id),
+		log:       log.WithField("tid", digest(ticket)),
 	}
 
-	ctx := context.WithValue(r.Context(), contextKeyFlowData, fd)
-	return fd, r.WithContext(ctx)
+	return fd, nil
 }
 
 func (tp *TP) fdOrError(w http.ResponseWriter, r *http.Request) *flowData {
@@ -267,8 +380,10 @@ func (tp *TP) storeOrError(w http.ResponseWriter, r *http.Request) Store {
 }
 
 func (tp *TP) getLog(r *http.Request) logrus.FieldLogger {
-	if fd, ok := r.Context().Value(contextKeyFlowData).(*flowData); ok && fd.log != nil {
-		return fd.log
+	if r != nil {
+		if fd, ok := r.Context().Value(contextKeyFlowData).(*flowData); ok && fd.log != nil {
+			return fd.log
+		}
 	}
 	if tp.Log != nil {
 		return tp.Log

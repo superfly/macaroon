@@ -1,15 +1,15 @@
 package tp
 
 const (
-	InitPath = "/.well-known/macfly/3p"
-	PollPath = "/.well-known/macfly/3p/poll"
+	InitPath       = "/.well-known/macfly/3p"
+	PollPathPrefix = "/.well-known/macfly/3p/poll/"
 )
 
 type jsonInitRequest struct {
 	Ticket []byte `json:"ticket,omitempty"`
 }
 
-type jsonInitResponse struct {
+type jsonResponse struct {
 	Error           string               `json:"error,omitempty"`
 	Discharge       string               `json:"discharge,omitempty"`
 	PollURL         string               `json:"poll_url,omitempty"`

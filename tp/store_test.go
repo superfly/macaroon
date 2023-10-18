@@ -68,7 +68,7 @@ func TestMemoryStoreSecrets(t *testing.T) {
 	assert.Equal(t, errNotFound, err)
 
 	bb := *b
-	bb.Ready = true
+	bb.ResponseBody = []byte{1, 2, 3}
 	bbUS, bbPS, err := ms.Put(&bb)
 	assert.NoError(t, err)
 	assert.Equal(t, bUS, bbUS)
@@ -77,14 +77,14 @@ func TestMemoryStoreSecrets(t *testing.T) {
 	sd, err = ms.GetByUserSecret(bUS)
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("b"), sd.Ticket)
-	assert.Equal(t, true, sd.Ready)
+	assert.Equal(t, []byte{1, 2, 3}, sd.ResponseBody)
 	_, err = ms.GetByPollSecret(bUS)
 	assert.Equal(t, errNotFound, err)
 
 	sd, err = ms.GetByPollSecret(bPS)
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("b"), sd.Ticket)
-	assert.Equal(t, true, sd.Ready)
+	assert.Equal(t, []byte{1, 2, 3}, sd.ResponseBody)
 	_, err = ms.GetByUserSecret(bPS)
 	assert.Equal(t, errNotFound, err)
 }
