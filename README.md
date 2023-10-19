@@ -116,7 +116,7 @@ See the \`flyio\` package for more details.
   - [func \(m \*Macaroon\) ThirdPartyTickets\(existingDischarges ...\[\]byte\) \(map\[string\]\[\]byte, error\)](<#Macaroon.ThirdPartyTickets>)
   - [func \(m \*Macaroon\) Verify\(k SigningKey, discharges \[\]\[\]byte, trusted3Ps map\[string\]EncryptionKey\) \(\*CaveatSet, error\)](<#Macaroon.Verify>)
 - [type Nonce](<#Nonce>)
-  - [func DecodeNonce\(buf \[\]byte\) \(Nonce, error\)](<#DecodeNonce>)
+  - [func DecodeNonce\(buf \[\]byte\) \(nonce Nonce, err error\)](<#DecodeNonce>)
   - [func \(n \*Nonce\) DecodeMsgpack\(d \*msgpack.Decoder\) error](<#Nonce.DecodeMsgpack>)
   - [func \(n \*Nonce\) EncodeMsgpack\(e \*msgpack.Encoder\) error](<#Nonce.EncodeMsgpack>)
   - [func \(n Nonce\) MustEncode\(\) \[\]byte](<#Nonce.MustEncode>)
@@ -693,7 +693,7 @@ type Nonce struct {
 ### func DecodeNonce
 
 ```go
-func DecodeNonce(buf []byte) (Nonce, error)
+func DecodeNonce(buf []byte) (nonce Nonce, err error)
 ```
 
 DecodeNonce parses just the [Nonce](<#Nonce>) from an encoded [Macaroon](<#Macaroon>). You'd want to do this, for instance, to look metadata up by the keyid of the [Macaroon](<#Macaroon>), which is encoded in the [Nonce](<#Nonce>).
