@@ -549,7 +549,7 @@ func (m *Macaroon) ThirdPartyTickets(existingDischarges ...[]byte) (map[string][
 			return nil, fmt.Errorf("extract third party caveats: duplicate locations: %s", cav.Location)
 		}
 
-		if _, discharged := dischargeTickets[hex.EncodeToString(m.Nonce.KID)]; !discharged {
+		if _, discharged := dischargeTickets[hex.EncodeToString(cav.Ticket)]; !discharged {
 			ret[cav.Location] = cav.Ticket
 		}
 	}
