@@ -13,7 +13,7 @@ import (
 	"github.com/superfly/macaroon"
 )
 
-func TestServer(t *testing.T) {
+func TestTP(t *testing.T) {
 	var (
 		tp                     *TP
 		handleInit, handleUser http.Handler
@@ -33,6 +33,7 @@ func TestServer(t *testing.T) {
 			panic(r.URL.EscapedPath())
 		}
 	}))
+	t.Cleanup(s.Close)
 
 	ms, err := NewMemoryStore(PrefixMunger("/user/"), 100)
 	assert.NoError(t, err)
@@ -53,8 +54,8 @@ func TestServer(t *testing.T) {
 		})
 
 		hdr := genFP(t, tp, myCaveat("fp-cav"))
-		c := &Client{FirstPartyLocation: fpLoc}
-		hdr, err = c.FetchDischargeTokens(context.Background(), hdr, nil)
+		c := &Client{FirstPartyLocation: firstPartyLocation}
+		hdr, err = c.FetchDischargeTokens(context.Background(), hdr)
 		assert.NoError(t, err)
 		cavs := checkFP(t, hdr)
 		assert.Equal(t, []string{"fp-cav", "dis-cav"}, cavs)
@@ -75,9 +76,13 @@ func TestServer(t *testing.T) {
 		hdr := genFP(t, tp, myCaveat("fp-cav"))
 
 		c := &Client{
-			FirstPartyLocation: fpLoc,
-			PollBackoffInitial: 10 * time.Millisecond,
-			PollBackoffNext:    func(d time.Duration) time.Duration { return 10 * time.Second },
+			FirstPartyLocation: firstPartyLocation,
+			PollBackoffNext: func(last time.Duration) time.Duration {
+				if last == 0 {
+					return 10 * time.Millisecond
+				}
+				return 10 * time.Second
+			},
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -97,7 +102,7 @@ func TestServer(t *testing.T) {
 			}
 		}()
 
-		hdr, err = c.FetchDischargeTokens(ctx, hdr, nil)
+		hdr, err = c.FetchDischargeTokens(ctx, hdr)
 		assert.NoError(t, err)
 		cavs := checkFP(t, hdr)
 		assert.Equal(t, []string{"fp-cav", "dis-cav"}, cavs)
@@ -116,9 +121,13 @@ func TestServer(t *testing.T) {
 		hdr := genFP(t, tp, myCaveat("fp-cav"))
 
 		c := &Client{
-			FirstPartyLocation: fpLoc,
-			PollBackoffInitial: 10 * time.Millisecond,
-			PollBackoffNext:    func(d time.Duration) time.Duration { return 10 * time.Second },
+			FirstPartyLocation: firstPartyLocation,
+			PollBackoffNext: func(last time.Duration) time.Duration {
+				if last == 0 {
+					return 10 * time.Millisecond
+				}
+				return 10 * time.Second
+			},
 			UserURLCallback: func(url string) error {
 				time.Sleep(10 * time.Millisecond)
 				assert.NoError(t, tp.DischargeUserInteractive(userSecret, myCaveat("dis-cav")))
@@ -129,7 +138,7 @@ func TestServer(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		hdr, err = c.FetchDischargeTokens(ctx, hdr, nil)
+		hdr, err = c.FetchDischargeTokens(ctx, hdr)
 		assert.NoError(t, err)
 		cavs := checkFP(t, hdr)
 		assert.Equal(t, []string{"fp-cav", "dis-cav"}, cavs)
@@ -137,36 +146,65 @@ func TestServer(t *testing.T) {
 }
 
 var (
-	fpLoc = "https://first-party"
-	fpKey = macaroon.NewSigningKey()
-	fpKID = []byte{1, 2, 3}
+	firstPartyLocation = "https://first-party"
+	fpKey              = macaroon.NewSigningKey()
+	fpKID              = []byte{1, 2, 3}
 )
+
+func getFirstPartyMacaroonWithThirdPartyCaveat(thirdPartyLocation string, thirdPartyKey macaroon.EncryptionKey, otherCaveats ...macaroon.Caveat) (string, error) {
+	m, err := macaroon.New(fpKID, firstPartyLocation, fpKey)
+	if err != nil {
+		return "", err
+	}
+
+	if err := m.Add(otherCaveats...); err != nil {
+		return "", err
+	}
+
+	if err := m.Add3P(thirdPartyKey, thirdPartyLocation); err != nil {
+		return "", err
+	}
+
+	tok, err := m.Encode()
+	if err != nil {
+		return "", err
+	}
+
+	return macaroon.ToAuthorizationHeader(tok), nil
+}
 
 func genFP(tb testing.TB, tp *TP, caveats ...macaroon.Caveat) string {
 	tb.Helper()
 
-	m, err := macaroon.New(fpKID, fpLoc, fpKey)
+	hdr, err := getFirstPartyMacaroonWithThirdPartyCaveat(tp.Location, tp.Key, caveats...)
 	assert.NoError(tb, err)
 
-	assert.NoError(tb, m.Add(caveats...))
-	assert.NoError(tb, m.Add3P(tp.Key, tp.Location, caveats...))
+	return hdr
+}
 
-	tok, err := m.Encode()
-	assert.NoError(tb, err)
+func validateFirstPartyMacaroon(tokenHeader string) (*macaroon.CaveatSet, error) {
+	fpb, dissb, err := macaroon.ParsePermissionAndDischargeTokens(tokenHeader, firstPartyLocation)
+	if err != nil {
+		return nil, err
+	}
 
-	return macaroon.ToAuthorizationHeader(tok)
+	m, err := macaroon.Decode(fpb)
+	if err != nil {
+		return nil, err
+	}
+
+	cs, err := m.Verify(fpKey, dissb, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return cs, nil
 }
 
 func checkFP(tb testing.TB, hdr string) []string {
 	tb.Helper()
 
-	fpb, dissb, err := macaroon.ParsePermissionAndDischargeTokens(hdr, fpLoc)
-	assert.NoError(tb, err)
-
-	m, err := macaroon.Decode(fpb)
-	assert.NoError(tb, err)
-
-	cs, err := m.Verify(fpKey, dissb, nil)
+	cs, err := validateFirstPartyMacaroon(hdr)
 	assert.NoError(tb, err)
 
 	cavs := macaroon.GetCaveats[*myCaveat](cs)
@@ -176,6 +214,26 @@ func checkFP(tb testing.TB, hdr string) []string {
 	}
 
 	return ret
+}
+
+func basicAuthClient(username, password string) *http.Client {
+	return &http.Client{
+		Transport: &basicAuthTransport{
+			t:        http.DefaultTransport.(*http.Transport).Clone(),
+			username: username,
+			password: password,
+		},
+	}
+}
+
+type basicAuthTransport struct {
+	t                  http.RoundTripper
+	username, password string
+}
+
+func (bat *basicAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.SetBasicAuth(bat.username, bat.password)
+	return bat.t.RoundTrip(req)
 }
 
 type myCaveat string

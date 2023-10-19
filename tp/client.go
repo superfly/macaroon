@@ -15,18 +15,33 @@ import (
 	"github.com/superfly/macaroon/internal/merr"
 )
 
+type ClientOption func(*Client)
+
 type Client struct {
+	// Location identifier for the party that issued the first party macaroon.
 	FirstPartyLocation string
-	UserURLCallback    func(url string) error
-	PollBackoffInitial time.Duration
-	PollBackoffNext    func(time.Duration) time.Duration
+
+	// HTTP client to use for requests to third parties. Third parties may try
+	// to set cookies to expedite future discharge flows. This may be
+	// facilitated by setting the http.Client's Jar field. With cookies enabled
+	// it's important to use a different cookie jar and hence client when
+	// fetching discharge tokens for multiple users.
+	HTTP *http.Client
+
+	// Function to call when when the third party needs to interact with the
+	// end-user directly. The provided URL should be opened in the user's
+	// browser if possible. Otherwise it should be displayed to the user and
+	// they should be instructed to open it themselves. (Optional, but attempts
+	// at user-interactive discharge flow will fail)
+	UserURLCallback func(url string) error
+
+	// A function determining how long to wait before making the next request
+	// when polling the third party to see if a discharge is ready. This is
+	// called the first time with a zero duration. (Optional)
+	PollBackoffNext func(lastBO time.Duration) (nextBO time.Duration)
 }
 
-func (c *Client) FetchDischargeTokens(ctx context.Context, tokenHeader string, httpClient *http.Client) (string, error) {
-	if httpClient == nil {
-		httpClient = http.DefaultClient
-	}
-
+func (c *Client) FetchDischargeTokens(ctx context.Context, tokenHeader string) (string, error) {
 	permTok, disToks, err := macaroon.ParsePermissionAndDischargeTokens(tokenHeader, c.FirstPartyLocation)
 	if err != nil {
 		return "", err
@@ -42,79 +57,55 @@ func (c *Client) FetchDischargeTokens(ctx context.Context, tokenHeader string, h
 		return "", err
 	}
 
-	discharges := make([]*ClientDischarge, 0, len(tickets))
-	wg := new(sync.WaitGroup)
+	var (
+		wg          sync.WaitGroup
+		m           sync.Mutex
+		combinedErr error
+	)
 
 	for tpLoc, ticket := range tickets {
-		discharge := &ClientDischarge{
-			Client:             c,
-			HTTP:               httpClient,
-			ThirdPartyLocation: tpLoc,
-			Ticket:             ticket,
-			Ctx:                ctx,
-		}
-		discharges = append(discharges, discharge)
-
 		wg.Add(1)
-		go func() {
+		go func(tpLoc string, ticket []byte) {
 			defer wg.Done()
-			discharge.Run()
-		}()
+
+			dis, err := c.fetchDischargeToken(ctx, tpLoc, ticket)
+
+			m.Lock()
+			defer m.Unlock()
+
+			if err != nil {
+				combinedErr = merr.Append(combinedErr, err)
+			} else {
+				tokenHeader = tokenHeader + "," + dis
+			}
+		}(tpLoc, ticket)
 	}
 
 	wg.Wait()
 
-	if err := ctx.Err(); err != nil {
-		return "", err
-	}
-
-	err = nil
-	for _, discharge := range discharges {
-		switch {
-		case discharge.Discharge != "":
-			tokenHeader = tokenHeader + "," + discharge.Discharge
-		case discharge.Error != nil:
-			err = merr.Append(err, discharge.Error)
-		default:
-			err = merr.Append(err, errors.New("shouldn't happen"))
-		}
-	}
-
-	return tokenHeader, err
+	return tokenHeader, combinedErr
 }
 
-type ClientDischarge struct {
-	Client             *Client
-	HTTP               *http.Client
-	ThirdPartyLocation string
-	Ticket             []byte
-	Ctx                context.Context
-
-	// results
-	Discharge string
-	Error     error
-}
-
-func (cd *ClientDischarge) Run() {
-	jresp, err := cd.DoInitRequest()
+func (c *Client) fetchDischargeToken(ctx context.Context, thirdPartyLocation string, ticket []byte) (string, error) {
+	jresp, err := c.doInitRequest(ctx, thirdPartyLocation, ticket)
 
 	switch {
 	case err != nil:
-		cd.Error = err
+		return "", err
 	case jresp.Discharge != "":
-		cd.Discharge = jresp.Discharge
+		return jresp.Discharge, nil
 	case jresp.PollURL != "":
-		cd.Discharge, cd.Error = cd.DoPoll(jresp.PollURL)
+		return c.doPoll(ctx, jresp.PollURL)
 	case jresp.UserInteractive != nil:
-		cd.Discharge, cd.Error = cd.DoUserInteractive(jresp.UserInteractive)
+		return c.doUserInteractive(ctx, jresp.UserInteractive)
 	default:
-		cd.Error = errors.New("bad discharge response")
+		return "", errors.New("bad discharge response")
 	}
 }
 
-func (cd *ClientDischarge) DoInitRequest() (*jsonResponse, error) {
+func (c *Client) doInitRequest(ctx context.Context, thirdPartyLocation string, ticket []byte) (*jsonResponse, error) {
 	jreq := &jsonInitRequest{
-		Ticket: cd.Ticket,
+		Ticket: ticket,
 	}
 
 	breq, err := json.Marshal(jreq)
@@ -122,13 +113,13 @@ func (cd *ClientDischarge) DoInitRequest() (*jsonResponse, error) {
 		return nil, err
 	}
 
-	hreq, err := http.NewRequestWithContext(cd.Ctx, http.MethodPost, cd.url(""), bytes.NewReader(breq))
+	hreq, err := http.NewRequestWithContext(ctx, http.MethodPost, initURL(thirdPartyLocation), bytes.NewReader(breq))
 	if err != nil {
 		return nil, err
 	}
 	hreq.Header.Set("Content-Type", "application/json")
 
-	hresp, err := cd.HTTP.Do(hreq)
+	hresp, err := c.http().Do(hreq)
 	if err != nil {
 		return nil, err
 	}
@@ -145,35 +136,36 @@ func (cd *ClientDischarge) DoInitRequest() (*jsonResponse, error) {
 	return &jresp, nil
 }
 
-func (cd *ClientDischarge) DoPoll(pollURL string) (string, error) {
+func (c *Client) doPoll(ctx context.Context, pollURL string) (string, error) {
 	if pollURL == "" {
 		return "", errors.New("bad discharge response")
 	}
 
-	req, err := http.NewRequestWithContext(cd.Ctx, http.MethodGet, pollURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pollURL, nil)
 	if err != nil {
 		return "", err
 	}
 
 	var (
-		bo    = cd.Client.PollBackoffInitial
+		bo    time.Duration
 		jresp jsonResponse
 	)
 
 pollLoop:
 	for {
-		hresp, err := cd.HTTP.Do(req)
+		hresp, err := c.http().Do(req)
 		if err != nil {
 			return "", err
 		}
 
 		if hresp.StatusCode == http.StatusAccepted {
+			bo = c.nextBO(bo)
+
 			select {
 			case <-time.After(bo):
-				bo = cd.Client.PollBackoffNext(bo)
 				continue pollLoop
-			case <-cd.Ctx.Done():
-				return "", cd.Ctx.Err()
+			case <-ctx.Done():
+				return "", ctx.Err()
 			}
 		}
 
@@ -191,23 +183,51 @@ pollLoop:
 	}
 }
 
-func (cd *ClientDischarge) DoUserInteractive(ui *jsonUserInteractive) (string, error) {
+func (c *Client) doUserInteractive(ctx context.Context, ui *jsonUserInteractive) (string, error) {
 	if ui.PollURL == "" || ui.UserURL == "" {
 		return "", errors.New("bad discharge response")
 	}
+	if c.UserURLCallback == nil {
+		return "", errors.New("missing user-url callback")
+	}
 
-	if err := cd.Client.UserURLCallback(ui.UserURL); err != nil {
+	if err := c.openUserInteractiveURL(ui.UserURL); err != nil {
 		return "", err
 	}
 
-	return cd.DoPoll(ui.PollURL)
+	return c.doPoll(ctx, ui.PollURL)
 }
 
-func (cd *ClientDischarge) url(path string) string {
-	if strings.HasSuffix(cd.ThirdPartyLocation, "/") {
-		return cd.ThirdPartyLocation + InitPath[1:] + path
+func (c *Client) nextBO(lastBO time.Duration) time.Duration {
+	if c.PollBackoffNext != nil {
+		return c.PollBackoffNext(lastBO)
 	}
-	return cd.ThirdPartyLocation + InitPath + path
+	if lastBO == 0 {
+		return time.Second
+	}
+	return 2 * lastBO
+}
+
+func (c *Client) openUserInteractiveURL(url string) error {
+	if c.UserURLCallback != nil {
+		return c.UserURLCallback(url)
+	}
+
+	return errors.New("client not configured for opening URLs")
+}
+
+func (c *Client) http() *http.Client {
+	if c.HTTP != nil {
+		return c.HTTP
+	}
+	return http.DefaultClient
+}
+
+func initURL(location string) string {
+	if strings.HasSuffix(location, "/") {
+		return location + InitPath[1:]
+	}
+	return location + InitPath
 }
 
 type Error struct {
