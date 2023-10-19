@@ -62,22 +62,24 @@ func (c *Client) FetchDischargeTokens(ctx context.Context, tokenHeader string) (
 		combinedErr error
 	)
 
-	for tpLoc, ticket := range tickets {
-		wg.Add(1)
-		go func(tpLoc string, ticket []byte) {
-			defer wg.Done()
+	for tpLoc, locTickets := range tickets {
+		for _, ticket := range locTickets {
+			wg.Add(1)
+			go func(tpLoc string, ticket []byte) {
+				defer wg.Done()
 
-			dis, err := c.fetchDischargeToken(ctx, tpLoc, ticket)
+				dis, err := c.fetchDischargeToken(ctx, tpLoc, ticket)
 
-			m.Lock()
-			defer m.Unlock()
+				m.Lock()
+				defer m.Unlock()
 
-			if err != nil {
-				combinedErr = merr.Append(combinedErr, err)
-			} else {
-				tokenHeader = tokenHeader + "," + dis
-			}
-		}(tpLoc, ticket)
+				if err != nil {
+					combinedErr = merr.Append(combinedErr, err)
+				} else {
+					tokenHeader = tokenHeader + "," + dis
+				}
+			}(tpLoc, ticket)
+		}
 	}
 
 	wg.Wait()
@@ -85,23 +87,30 @@ func (c *Client) FetchDischargeTokens(ctx context.Context, tokenHeader string) (
 	return tokenHeader, combinedErr
 }
 
-func (c *Client) undischargedTickets(tokenHeader string) (map[string][]byte, error) {
-	permTok, disToks, err := macaroon.ParsePermissionAndDischargeTokens(tokenHeader, c.FirstPartyLocation)
+func (c *Client) undischargedTickets(tokenHeader string) (map[string][][]byte, error) {
+	toks, err := macaroon.Parse(tokenHeader)
 	if err != nil {
 		return nil, err
 	}
 
-	perm, err := macaroon.Decode(permTok)
+	perms, _, _, disToks, err := macaroon.FindPermissionAndDischargeTokens(toks, c.FirstPartyLocation)
 	if err != nil {
 		return nil, err
 	}
 
-	tickets, err := perm.ThirdPartyTickets(disToks...)
-	if err != nil {
-		return nil, err
+	ret := make(map[string][][]byte)
+	for _, perm := range perms {
+		tickets, err := perm.ThirdPartyTickets(disToks...)
+		if err != nil {
+			return nil, err
+		}
+
+		for loc, ticket := range tickets {
+			ret[loc] = append(ret[loc], ticket)
+		}
 	}
 
-	return tickets, nil
+	return ret, nil
 }
 
 func (c *Client) fetchDischargeToken(ctx context.Context, thirdPartyLocation string, ticket []byte) (string, error) {
