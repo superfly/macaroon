@@ -41,18 +41,17 @@ type Client struct {
 	PollBackoffNext func(lastBO time.Duration) (nextBO time.Duration)
 }
 
+func (c *Client) NeedsDischarge(tokenHeader string) (bool, error) {
+	tickets, err := c.undischargedTickets(tokenHeader)
+	if err != nil {
+		return false, err
+	}
+
+	return len(tickets) != 0, nil
+}
+
 func (c *Client) FetchDischargeTokens(ctx context.Context, tokenHeader string) (string, error) {
-	permTok, disToks, err := macaroon.ParsePermissionAndDischargeTokens(tokenHeader, c.FirstPartyLocation)
-	if err != nil {
-		return "", err
-	}
-
-	perm, err := macaroon.Decode(permTok)
-	if err != nil {
-		return "", err
-	}
-
-	tickets, err := perm.ThirdPartyTickets(disToks...)
+	tickets, err := c.undischargedTickets(tokenHeader)
 	if err != nil {
 		return "", err
 	}
@@ -84,6 +83,25 @@ func (c *Client) FetchDischargeTokens(ctx context.Context, tokenHeader string) (
 	wg.Wait()
 
 	return tokenHeader, combinedErr
+}
+
+func (c *Client) undischargedTickets(tokenHeader string) (map[string][]byte, error) {
+	permTok, disToks, err := macaroon.ParsePermissionAndDischargeTokens(tokenHeader, c.FirstPartyLocation)
+	if err != nil {
+		return nil, err
+	}
+
+	perm, err := macaroon.Decode(permTok)
+	if err != nil {
+		return nil, err
+	}
+
+	tickets, err := perm.ThirdPartyTickets(disToks...)
+	if err != nil {
+		return nil, err
+	}
+
+	return tickets, nil
 }
 
 func (c *Client) fetchDischargeToken(ctx context.Context, thirdPartyLocation string, ticket []byte) (string, error) {
