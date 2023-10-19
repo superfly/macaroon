@@ -111,6 +111,7 @@ See the \`flyio\` package for more details.
   - [func \(m \*Macaroon\) BindToParentMacaroon\(parent \*Macaroon\) error](<#Macaroon.BindToParentMacaroon>)
   - [func \(m \*Macaroon\) Encode\(\) \(\[\]byte, error\)](<#Macaroon.Encode>)
   - [func \(m \*Macaroon\) Expiration\(\) time.Time](<#Macaroon.Expiration>)
+  - [func \(m \*Macaroon\) String\(\) \(string, error\)](<#Macaroon.String>)
   - [func \(m \*Macaroon\) ThirdPartyTicket\(location string, existingDischarges ...\[\]byte\) \(\[\]byte, error\)](<#Macaroon.ThirdPartyTicket>)
   - [func \(m \*Macaroon\) ThirdPartyTickets\(existingDischarges ...\[\]byte\) \(map\[string\]\[\]byte, error\)](<#Macaroon.ThirdPartyTickets>)
   - [func \(m \*Macaroon\) Verify\(k SigningKey, discharges \[\]\[\]byte, trusted3Ps map\[string\]EncryptionKey\) \(\*CaveatSet, error\)](<#Macaroon.Verify>)
@@ -630,6 +631,15 @@ func (m *Macaroon) Expiration() time.Time
 ```
 
 Expiration calculates when this macaroon will expire
+
+<a name="Macaroon.String"></a>
+### func \(\*Macaroon\) String
+
+```go
+func (m *Macaroon) String() (string, error)
+```
+
+String encoded token with \`fm2\_\` prefix.
 
 <a name="Macaroon.ThirdPartyTicket"></a>
 ### func \(\*Macaroon\) ThirdPartyTicket
