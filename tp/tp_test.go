@@ -128,7 +128,7 @@ func TestTP(t *testing.T) {
 				}
 				return 10 * time.Second
 			},
-			UserURLCallback: func(url string) error {
+			UserURLCallback: func(_ context.Context, url string) error {
 				time.Sleep(10 * time.Millisecond)
 				assert.NoError(t, tp.DischargeUserInteractive(userSecret, myCaveat("dis-cav")))
 				return nil

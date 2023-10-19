@@ -33,7 +33,7 @@ type Client struct {
 	// browser if possible. Otherwise it should be displayed to the user and
 	// they should be instructed to open it themselves. (Optional, but attempts
 	// at user-interactive discharge flow will fail)
-	UserURLCallback func(url string) error
+	UserURLCallback func(ctx context.Context, url string) error
 
 	// A function determining how long to wait before making the next request
 	// when polling the third party to see if a discharge is ready. This is
@@ -191,7 +191,7 @@ func (c *Client) doUserInteractive(ctx context.Context, ui *jsonUserInteractive)
 		return "", errors.New("missing user-url callback")
 	}
 
-	if err := c.openUserInteractiveURL(ui.UserURL); err != nil {
+	if err := c.openUserInteractiveURL(ctx, ui.UserURL); err != nil {
 		return "", err
 	}
 
@@ -208,9 +208,9 @@ func (c *Client) nextBO(lastBO time.Duration) time.Duration {
 	return 2 * lastBO
 }
 
-func (c *Client) openUserInteractiveURL(url string) error {
+func (c *Client) openUserInteractiveURL(ctx context.Context, url string) error {
 	if c.UserURLCallback != nil {
-		return c.UserURLCallback(url)
+		return c.UserURLCallback(ctx, url)
 	}
 
 	return errors.New("client not configured for opening URLs")
