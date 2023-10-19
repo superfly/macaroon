@@ -185,12 +185,20 @@ func Decode(buf []byte) (*Macaroon, error) {
 // DecodeNonce parses just the [Nonce] from an encoded [Macaroon].
 // You'd want to do this, for instance, to look metadata up by the
 // keyid of the [Macaroon], which is encoded in the [Nonce].
-func DecodeNonce(buf []byte) (Nonce, error) {
-	var (
-		nonceOnly = struct{ Nonce Nonce }{}
-		err       = msgpack.Unmarshal(buf, &nonceOnly)
-	)
-	return nonceOnly.Nonce, err
+func DecodeNonce(buf []byte) (nonce Nonce, err error) {
+	dec := msgpack.NewDecoder(bytes.NewReader(buf))
+
+	var n int
+	switch n, err = dec.DecodeArrayLen(); {
+	case err != nil:
+		return
+	case n == 0:
+		err = errors.New("bad nonce")
+		return
+	}
+
+	err = dec.Decode(&nonce)
+	return
 }
 
 // Add adds a caveat to a Macaroon, adjusting the tail signature in

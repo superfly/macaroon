@@ -536,6 +536,10 @@ func TestSimple3P(t *testing.T) {
 				action:         ActionRead,
 			})
 			assert.NoError(t, err)
+
+			tps, err = decoded.ThirdPartyTickets(aBuf)
+			assert.NoError(t, err)
+			assert.Equal(t, 0, len(tps))
 		})
 	}
 }
@@ -629,6 +633,19 @@ func TestDuplicateCaveats(t *testing.T) {
 
 	assert.NoError(t, m.Add(cavParent(ActionAll, 345), cavParent(ActionAll, 345)))
 	assert.Equal(t, 5, len(m.UnsafeCaveats.Caveats))
+}
+
+func TestDecodeNonce(t *testing.T) {
+	m, err := New(rbuf(10), "x", NewSigningKey())
+	assert.NoError(t, err)
+
+	mb, err := m.Encode()
+	assert.NoError(t, err)
+
+	n, err := DecodeNonce(mb)
+	assert.NoError(t, err)
+
+	assert.Equal(t, m.Nonce, n)
 }
 
 func dischargeMacaroon(ka EncryptionKey, location string, encodedMacaroon []byte) (bool, []Caveat, *Macaroon, error) {
