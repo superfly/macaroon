@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"sync"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/crypto/blake2b"
@@ -34,10 +33,8 @@ type UserSecretMunger interface {
 
 type MemoryStore struct {
 	UserSecretMunger
-	Cache *lru.Cache[string, *StoreData]
-
-	_secret         []byte
-	_initSecretOnce sync.Once
+	Cache  *lru.Cache[string, *StoreData]
+	secret []byte
 }
 
 func NewMemoryStore(m UserSecretMunger, size int) (*MemoryStore, error) {
@@ -49,6 +46,7 @@ func NewMemoryStore(m UserSecretMunger, size int) (*MemoryStore, error) {
 	return &MemoryStore{
 		Cache:            cache,
 		UserSecretMunger: PrefixMunger("/user/"),
+		secret:           randBytes(32),
 	}, nil
 }
 
@@ -87,7 +85,7 @@ func (s *MemoryStore) GetByUserSecret(userSecret string) (*StoreData, error) {
 }
 
 func (s *MemoryStore) ticketSecrets(t []byte) (string, string) {
-	h, err := blake2b.New(32, s.secret())
+	h, err := blake2b.New(32, s.secret)
 	if err != nil {
 		panic(err)
 	}
@@ -97,11 +95,6 @@ func (s *MemoryStore) ticketSecrets(t []byte) (string, string) {
 	d := h.Sum(nil)
 
 	return hex.EncodeToString(d[:16]), hex.EncodeToString(d[16:])
-}
-
-func (s *MemoryStore) secret() []byte {
-	s._initSecretOnce.Do(func() { s._secret = randBytes(32) })
-	return s._secret
 }
 
 func digest[T string | []byte](d T) string {
