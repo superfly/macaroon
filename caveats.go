@@ -7,9 +7,9 @@ import (
 
 // Caveat3P is a requirement that the token be presented along with a 3P discharge token.
 type Caveat3P struct {
-	Location string
-	VID      []byte // used by the initial issuer to verify discharge macaroon
-	CID      []byte // used by the 3p service to construct discharge macaroon
+	Location    string
+	VerifierKey []byte // used by the initial issuer to verify discharge macaroon
+	Ticket      []byte // used by the 3p service to construct discharge macaroon
 
 	// HMAC key for 3P caveat
 	rn []byte `msgpack:"-"`

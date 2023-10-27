@@ -25,7 +25,7 @@ func TestJSON(t *testing.T) {
 func TestCaveatSerialization(t *testing.T) {
 	cs := NewCaveatSet(
 		&ValidityWindow{NotBefore: 123, NotAfter: 234},
-		&Caveat3P{Location: "123", VID: []byte("123"), CID: []byte("123")},
+		&Caveat3P{Location: "123", VerifierKey: []byte("123"), Ticket: []byte("123")},
 		&BindToParentToken{1, 2, 3},
 	)
 
