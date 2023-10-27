@@ -45,7 +45,7 @@ func NewMemoryStore(m UserSecretMunger, size int) (*MemoryStore, error) {
 
 	return &MemoryStore{
 		Cache:            cache,
-		UserSecretMunger: PrefixMunger("/user/"),
+		UserSecretMunger: m,
 		secret:           randBytes(32),
 	}, nil
 }

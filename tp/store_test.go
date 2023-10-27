@@ -10,7 +10,7 @@ func TestMemoryStoreSecrets(t *testing.T) {
 	ms, err := NewMemoryStore(PrefixMunger("/user/"), 100)
 	assert.NoError(t, err)
 
-	assert.Equal(t, 32, len(ms.secret()))
+	assert.Equal(t, 32, len(ms.secret))
 
 	x, y := ms.ticketSecrets([]byte("hi"))
 	assert.Equal(t, 32, len(x))
