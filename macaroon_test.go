@@ -27,6 +27,7 @@ func cavExpiry(d time.Duration) Caveat {
 const (
 	cavTestParentResource = iota + CavMinUserDefined
 	cavTestChildResource
+	cavMyUnregistered
 )
 
 type testCaveatParentResource struct {

@@ -1,8 +1,8 @@
 package macaroon
 
 import (
-	"fmt"
 	"reflect"
+	"strconv"
 )
 
 // A numeric identifier for caveat types. Values less than
@@ -40,12 +40,12 @@ const (
 	// pull requests to this repository. Add a meaningful name of the caveat
 	// type (e.g. CavAcmeCorpWidgetID) on the line prior to
 	// CavMaxUserRegisterable.
-	CavMinUserRegisterable = 1 << 32
-	CavMaxUserRegisterable = 1<<48 - 1
+	CavMinUserRegisterable CaveatType = 1 << 32
+	CavMaxUserRegisterable CaveatType = 1<<48 - 1
 
-	CavMinUserDefined = 1 << 48
-	CavMaxUserDefined = 1<<64 - 2
-	CavUnregistered   = 1<<64 - 1
+	CavMinUserDefined CaveatType = 1 << 48
+	CavMaxUserDefined CaveatType = 1<<64 - 2
+	CavUnregistered   CaveatType = 1<<64 - 1
 )
 
 // Caveat is the interface implemented by all caveats.
@@ -112,6 +112,14 @@ func RegisterCaveatType(zeroValue Caveat) {
 	s2t[name] = typ
 }
 
+func unregisterCaveatType(zeroValue Caveat) {
+	typ := zeroValue.CaveatType()
+	name := zeroValue.Name()
+	delete(t2c, typ)
+	delete(t2s, typ)
+	delete(s2t, name)
+}
+
 // Register an alternate name for this caveat type that will be recognized when
 // decoding JSON.
 func RegisterCaveatJSONAlias(typ CaveatType, alias string) {
@@ -124,30 +132,33 @@ func RegisterCaveatJSONAlias(typ CaveatType, alias string) {
 	s2t[alias] = typ
 }
 
-func typeToCaveat(t CaveatType) (Caveat, error) {
+func typeToCaveat(t CaveatType) Caveat {
 	cav, ok := t2c[t]
 	if !ok {
-		return nil, fmt.Errorf("unregistered caveat type %d", t)
+		return &UnregisteredCaveat{Type: t}
 	}
 
 	ct := reflect.TypeOf(cav)
 	if ct.Kind() == reflect.Pointer {
-		return reflect.New(ct.Elem()).Interface().(Caveat), nil
+		return reflect.New(ct.Elem()).Interface().(Caveat)
 	}
-	return reflect.Zero(ct).Interface().(Caveat), nil
+	return reflect.Zero(ct).Interface().(Caveat)
 }
 
 func caveatTypeFromString(s string) CaveatType {
 	if t, ok := s2t[s]; ok {
 		return t
 	}
+	if t, err := strconv.ParseUint(s, 10, 64); err == nil {
+		return CaveatType(t)
+	}
 
 	return CavUnregistered
 }
 
 func caveatTypeToString(t CaveatType) string {
-	if s, ok := t2s[t]; ok {
+	if s, ok := t2s[t]; ok && t < CavMinUserDefined {
 		return s
 	}
-	return "[unregistered]"
+	return strconv.FormatUint(uint64(t), 10)
 }

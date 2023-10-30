@@ -130,11 +130,7 @@ func (c *CaveatSet) DecodeMsgpack(dec *msgpack.Decoder) error {
 			return err
 		}
 
-		cav, err := typeToCaveat(CaveatType(t))
-		if err != nil {
-			return err
-		}
-
+		cav := typeToCaveat(CaveatType(t))
 		if err := dec.Decode(cav); err != nil {
 			return err
 		}
@@ -181,10 +177,7 @@ func (c *CaveatSet) UnmarshalJSON(b []byte) error {
 	for i := range jcavs {
 		t := caveatTypeFromString(jcavs[i].Type)
 
-		if c.Caveats[i], _ = typeToCaveat(t); c.Caveats[i] == nil {
-			return fmt.Errorf("bad caveat type: %s", jcavs[i].Type)
-		}
-
+		c.Caveats[i] = typeToCaveat(t)
 		if err := json.Unmarshal(jcavs[i].Body, &c.Caveats[i]); err != nil {
 			return err
 		}
