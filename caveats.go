@@ -1,8 +1,11 @@
 package macaroon
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
+
+	msgpack "github.com/vmihailenco/msgpack/v5"
 )
 
 // Caveat3P is a requirement that the token be presented along with a 3P discharge token.
@@ -69,4 +72,48 @@ func (c *BindToParentToken) Prohibits(f Access) error {
 	// IsUser are part of token verification and  have no role in
 	// access validation.
 	return fmt.Errorf("%w (bind-to-parent)", ErrBadCaveat)
+}
+
+type UnregisteredCaveat struct {
+	Type       CaveatType
+	Body       any
+	RawJSON    []byte
+	RawMsgpack []byte
+}
+
+func (c *UnregisteredCaveat) CaveatType() CaveatType { return c.Type }
+func (c *UnregisteredCaveat) Name() string           { return "Unregistered" }
+
+func (c *UnregisteredCaveat) Prohibits(f Access) error {
+	return fmt.Errorf("%w (unregistered)", ErrBadCaveat)
+}
+
+func (c UnregisteredCaveat) MarshalMsgpack() ([]byte, error) {
+	// JSON is just for user-readability, but msgpack is what's used for
+	// signature verification. With struct tags, etc, it's lossy to encode
+	// things from json<->msgpack, so we just don't allow it.
+	if len(c.RawMsgpack) == 0 {
+		return nil, fmt.Errorf("cannot convert unregistered caveats from JSON to msgpack")
+	}
+	return c.RawMsgpack, nil
+}
+
+func (c *UnregisteredCaveat) UnmarshalMsgpack(data []byte) error {
+	c.RawMsgpack = data
+	return msgpack.Unmarshal(data, &c.Body)
+}
+
+func (c UnregisteredCaveat) MarshalJSON() ([]byte, error) {
+	// JSON is just for user-readability, but msgpack is what's used for
+	// signature verification. With struct tags, etc, it's lossy to encode
+	// things from json<->msgpack, so we just don't allow it.
+	if len(c.RawJSON) == 0 {
+		return nil, fmt.Errorf("cannot convert unregistered caveats from msgpack to JSON")
+	}
+	return c.RawJSON, nil
+}
+
+func (c *UnregisteredCaveat) UnmarshalJSON(data []byte) error {
+	c.RawJSON = data
+	return json.Unmarshal(data, &c.Body)
 }
