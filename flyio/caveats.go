@@ -8,18 +8,16 @@ import (
 )
 
 const (
-	CavOrganization        = macaroon.CavFlyioOrganization
-	CavVolumes             = macaroon.CavFlyioVolumes
-	CavApps                = macaroon.CavFlyioApps
-	CavFeatureSet          = macaroon.CavFlyioFeatureSet
-	CavMutations           = macaroon.CavFlyioMutations
-	CavMachines            = macaroon.CavFlyioMachines
-	CavConfineUser         = macaroon.CavFlyioConfineUser
-	CavConfineOrganization = macaroon.CavFlyioConfineOrganization
-	CavIsUser              = macaroon.CavFlyioIsUser
-	CavMachineFeatureSet   = macaroon.CavFlyioMachineFeatureSet
-	CavFromMachineSource   = macaroon.CavFlyioFromMachineSource
-	CavClusters            = macaroon.CavFlyioClusters
+	CavOrganization      = macaroon.CavFlyioOrganization
+	CavVolumes           = macaroon.CavFlyioVolumes
+	CavApps              = macaroon.CavFlyioApps
+	CavFeatureSet        = macaroon.CavFlyioFeatureSet
+	CavMutations         = macaroon.CavFlyioMutations
+	CavMachines          = macaroon.CavFlyioMachines
+	CavIsUser            = macaroon.CavFlyioIsUser
+	CavMachineFeatureSet = macaroon.CavFlyioMachineFeatureSet
+	CavFromMachineSource = macaroon.CavFlyioFromMachineSource
+	CavClusters          = macaroon.CavFlyioClusters
 )
 
 type FromMachine struct {
@@ -74,35 +72,6 @@ func (c *Organization) Prohibits(a macaroon.Access) error {
 	default:
 		return nil
 	}
-}
-
-// ConfineOrganization is a requirement placed on 3P caveats, requiring that the
-// authenticated used be associated with OrgID. It has no meaning in a 1P setting.
-type ConfineOrganization struct {
-	ID uint64 `json:"id"`
-}
-
-func init()                                                    { macaroon.RegisterCaveatType(&ConfineOrganization{}) }
-func (c *ConfineOrganization) CaveatType() macaroon.CaveatType { return CavConfineOrganization }
-func (c *ConfineOrganization) Name() string                    { return "ConfineOrganization" }
-
-func (c *ConfineOrganization) Prohibits(macaroon.Access) error {
-	// ConfineOrganization is only used in 3P caveats and has no role in access validation.
-	return fmt.Errorf("%w (confine-organization)", macaroon.ErrBadCaveat)
-}
-
-// ConfineUser is a caveat limiting this token to a specific user ID.
-type ConfineUser struct {
-	ID uint64 `json:"id"`
-}
-
-func init()                                            { macaroon.RegisterCaveatType(&ConfineUser{}) }
-func (c *ConfineUser) CaveatType() macaroon.CaveatType { return CavConfineUser }
-func (c *ConfineUser) Name() string                    { return "ConfineUser" }
-
-func (c *ConfineUser) Prohibits(macaroon.Access) error {
-	// ConfineUser is only used in 3P caveats and has no role in access validation.
-	return fmt.Errorf("%w (confine-user)", macaroon.ErrBadCaveat)
 }
 
 // Apps is a set of App caveats, with their RWX access levels. A token with this set can be used

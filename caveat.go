@@ -21,8 +21,8 @@ const (
 	CavFlyioFeatureSet
 	CavFlyioMutations
 	CavFlyioMachines
-	CavFlyioConfineUser
-	CavFlyioConfineOrganization
+	CavAuthConfineUser
+	CavAuthConfineOrganization
 	CavFlyioIsUser
 	Cav3P
 	CavBindToParentToken
@@ -32,9 +32,9 @@ const (
 	CavFlyioClusters
 	_ // fly.io reserved
 	_ // fly.io reserved
-	CavFlyioRequireGoogleHD
-	CavFlyioRequireGitHubOrg
-	CavFlyioDischargeExpiryLTE
+	CavAuthConfineGoogleHD
+	CavAuthConfineGitHubOrg
+	CavAuthMaxValidity
 
 	// Globally-recognized user-registerable caveat types may be requested via
 	// pull requests to this repository. Add a meaningful name of the caveat

@@ -6,9 +6,11 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"math"
 	"os"
 
 	"github.com/superfly/macaroon"
+	"github.com/superfly/macaroon/auth"
 	"github.com/superfly/macaroon/resset"
 )
 
@@ -20,6 +22,7 @@ func main() {
 
 		// map[baseMacaroon]map[caveatsBeingAdded]resultingMacaroon
 		Attenuation: map[string]map[string]string{},
+		Caveats:     map[string][]byte{},
 	}
 	v.KID = keyFingerprint(v.Key)
 
@@ -74,6 +77,14 @@ func main() {
 		v.Attenuation[aBaseHdr][base64.StdEncoding.EncodeToString(cavsPacked)] = macaroon.ToAuthorizationHeader(otherTok, cpyEnc, otherTok)
 	}
 
+	for _, c := range caveats.Caveats {
+		v.Caveats[c.Name()] = pack(c)
+	}
+
+	v.Caveats["zeroUint64Caveat"] = pack(ptr(uint64Caveat(0)))
+	v.Caveats["smallUint64Caveat"] = pack(ptr(uint64Caveat(1)))
+	v.Caveats["bigUint64Caveat"] = pack(ptr(uint64Caveat(math.MaxUint64)))
+
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 
@@ -88,6 +99,7 @@ type vectors struct {
 	KID         []byte                       `json:"kid"`
 	Macaroons   map[string]string            `json:"macaroons"`
 	Attenuation map[string]map[string]string `json:"attenuation"`
+	Caveats     map[string][]byte            `json:"caveats"`
 }
 
 var caveats = macaroon.NewCaveatSet(
@@ -109,6 +121,10 @@ var caveats = macaroon.NewCaveatSet(
 		StringResourceSetField: resset.ResourceSet[string]{"foo": resset.ActionAll},
 		PrefixResourceSetField: resset.ResourceSet[resset.Prefix]{"foo": resset.ActionAll},
 	},
+	auth.RequireUser(123),
+	auth.RequireOrganization(123),
+	auth.RequireGoogleHD("123"),
+	auth.RequireGitHubOrg(123),
 )
 
 const (
@@ -139,7 +155,7 @@ func (c *int64Caveat) CaveatType() macaroon.CaveatType   { return cavInt64 }
 func (c *int64Caveat) Name() string                      { return "Int64" }
 func (c *int64Caveat) Prohibits(f macaroon.Access) error { return nil }
 
-type uint64Caveat int64
+type uint64Caveat uint64
 
 func init()                                               { macaroon.RegisterCaveatType(new(uint64Caveat)) }
 func (c *uint64Caveat) CaveatType() macaroon.CaveatType   { return cavUint64 }
@@ -217,4 +233,12 @@ func randBytes(n int) []byte {
 
 func ptr[T any](v T) *T {
 	return &v
+}
+
+func pack(caveats ...macaroon.Caveat) []byte {
+	cs, err := macaroon.NewCaveatSet(caveats...).MarshalMsgpack()
+	if err != nil {
+		panic(err)
+	}
+	return cs
 }

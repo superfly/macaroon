@@ -17,8 +17,6 @@ func TestCaveatSerialization(t *testing.T) {
 		&Volumes{Volumes: resset.New(resset.ActionRead, "123")},
 		&Machines{Machines: resset.New(resset.ActionRead, "123")},
 		&Mutations{Mutations: []string{"123"}},
-		&ConfineUser{ID: 123},
-		&ConfineOrganization{ID: 123},
 		&IsUser{ID: 123},
 		&MachineFeatureSet{Features: resset.New(resset.ActionRead, "123")},
 		&FromMachine{ID: "asdf"},
