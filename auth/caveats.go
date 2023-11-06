@@ -40,8 +40,8 @@ func (c *ConfineOrganization) Prohibits(a macaroon.Access) error {
 		return macaroon.ErrInvalidAccess
 	case dr.Organization == nil:
 		return c
-	case dr.Organization.ID != c.ID:
-		return fmt.Errorf("%w (got %d)", c, dr.Organization.ID)
+	case !slices.Contains(dr.Organization.IDs, c.ID):
+		return fmt.Errorf("%w (got %v)", c, dr.Organization.IDs)
 	default:
 		return nil
 	}
