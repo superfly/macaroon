@@ -19,7 +19,7 @@ type UserAuth struct {
 }
 
 type OrganizationAuth struct {
-	ID uint64
+	IDs []uint64
 }
 
 type GoogleAuth struct {
