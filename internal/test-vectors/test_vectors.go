@@ -27,53 +27,25 @@ func main() {
 	v.KID = keyFingerprint(v.Key)
 
 	for _, c := range caveats.Caveats {
-		m, err := macaroon.New(v.KID, v.Location, v.Key)
-		if err != nil {
-			panic(err)
-		}
-		if err = m.Add(c); err != nil {
-			panic(err)
-		}
-		tok, err := m.Encode()
-		if err != nil {
-			panic(err)
-		}
+		m, _ := macaroon.New(v.KID, v.Location, v.Key)
+		m.Add(c)
+		tok, _ := m.Encode()
 		v.Macaroons[c.Name()] = macaroon.ToAuthorizationHeader(tok)
 	}
 
-	other, err := macaroon.New([]byte{1, 2, 3}, "other loc", macaroon.NewSigningKey())
-	if err != nil {
-		panic(err)
-	}
-	otherTok, err := other.Encode()
-	if err != nil {
-		panic(err)
-	}
+	other, _ := macaroon.New([]byte{1, 2, 3}, "other loc", macaroon.NewSigningKey())
+	otherTok, _ := other.Encode()
 
-	aBase, err := macaroon.New(v.KID, v.Location, v.Key)
-	if err != nil {
-		panic(err)
-	}
-	aBaseTok, err := aBase.Encode()
-	if err != nil {
-		panic(err)
-	}
+	aBase, _ := macaroon.New(v.KID, v.Location, v.Key)
+	aBaseTok, _ := aBase.Encode()
 	aBaseHdr := macaroon.ToAuthorizationHeader(otherTok, aBaseTok, otherTok)
 	v.Attenuation[aBaseHdr] = map[string]string{}
 	for _, c := range caveats.Caveats {
 		cpy := ptr(*aBase)
 		cpy.UnsafeCaveats = *macaroon.NewCaveatSet()
-		if err := cpy.Add(c); err != nil {
-			panic(err)
-		}
-		cavsPacked, err := cpy.UnsafeCaveats.MarshalMsgpack()
-		if err != nil {
-			panic(err)
-		}
-		cpyEnc, err := cpy.Encode()
-		if err != nil {
-			panic(err)
-		}
+		cpy.Add(c)
+		cavsPacked, _ := cpy.UnsafeCaveats.MarshalMsgpack()
+		cpyEnc, _ := cpy.Encode()
 		v.Attenuation[aBaseHdr][base64.StdEncoding.EncodeToString(cavsPacked)] = macaroon.ToAuthorizationHeader(otherTok, cpyEnc, otherTok)
 	}
 
@@ -84,6 +56,17 @@ func main() {
 	v.Caveats["zeroUint64Caveat"] = pack(ptr(uint64Caveat(0)))
 	v.Caveats["smallUint64Caveat"] = pack(ptr(uint64Caveat(1)))
 	v.Caveats["bigUint64Caveat"] = pack(ptr(uint64Caveat(math.MaxUint64)))
+
+	withTP := ptr(*aBase)
+	withTP.UnsafeCaveats = *macaroon.NewCaveatSet()
+	dKey := macaroon.NewEncryptionKey()
+	withTP.Add3P(dKey, "discharged")
+	withTP.Add3P(macaroon.NewEncryptionKey(), "undischarged")
+	ticket, _ := withTP.ThirdPartyTicket("discharged")
+	_, dm, _ := macaroon.DischargeTicket(dKey, "discharged", ticket)
+	dmTok, _ := dm.Encode()
+	permTok, _ := withTP.Encode()
+	v.WithTPs = macaroon.ToAuthorizationHeader(permTok, dmTok)
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
@@ -100,6 +83,7 @@ type vectors struct {
 	Macaroons   map[string]string            `json:"macaroons"`
 	Attenuation map[string]map[string]string `json:"attenuation"`
 	Caveats     map[string][]byte            `json:"caveats"`
+	WithTPs     string                       `json:"with_tps"`
 }
 
 var caveats = macaroon.NewCaveatSet(
@@ -225,9 +209,7 @@ func randHex(n int) string {
 
 func randBytes(n int) []byte {
 	buf := make([]byte, n)
-	if _, err := rand.Read(buf); err != nil {
-		panic(err)
-	}
+	rand.Read(buf)
 	return buf
 }
 
@@ -236,9 +218,6 @@ func ptr[T any](v T) *T {
 }
 
 func pack(caveats ...macaroon.Caveat) []byte {
-	cs, err := macaroon.NewCaveatSet(caveats...).MarshalMsgpack()
-	if err != nil {
-		panic(err)
-	}
+	cs, _ := macaroon.NewCaveatSet(caveats...).MarshalMsgpack()
 	return cs
 }
