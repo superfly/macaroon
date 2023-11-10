@@ -18,7 +18,9 @@ type StoreData struct {
 
 type Store interface {
 	Put(*StoreData) (userSecret, pollSecret string, err error)
-	Delete(*StoreData) error
+
+	DeleteByPollSecret(string) error
+	DeleteByUserSecret(string) error
 
 	GetByPollSecret(string) (*StoreData, error)
 	GetByUserSecret(string) (*StoreData, error)
@@ -63,7 +65,23 @@ func (s *MemoryStore) Put(sd *StoreData) (userSecret, pollSecret string, err err
 	return
 }
 
-func (s *MemoryStore) Delete(sd *StoreData) error {
+func (s *MemoryStore) DeleteByPollSecret(pollSecret string) error {
+	sd, err := s.GetByPollSecret(pollSecret)
+	if err != nil {
+		return err
+	}
+	return s.delete(sd)
+}
+
+func (s *MemoryStore) DeleteByUserSecret(userSecret string) error {
+	sd, err := s.GetByUserSecret(userSecret)
+	if err != nil {
+		return err
+	}
+	return s.delete(sd)
+}
+
+func (s *MemoryStore) delete(sd *StoreData) error {
 	userSecret, pollSecret := s.ticketSecrets(sd.Ticket)
 	s.Cache.Remove("u" + digest(userSecret))
 	s.Cache.Remove("p" + digest(pollSecret))

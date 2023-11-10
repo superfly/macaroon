@@ -48,7 +48,7 @@ func TestMemoryStoreSecrets(t *testing.T) {
 	_, err = ms.GetByUserSecret(bPS)
 	assert.Equal(t, errNotFound, err)
 
-	assert.NoError(t, ms.Delete(a))
+	assert.NoError(t, ms.DeleteByPollSecret(aPS))
 
 	_, err = ms.GetByPollSecret(aPS)
 	assert.Equal(t, errNotFound, err)

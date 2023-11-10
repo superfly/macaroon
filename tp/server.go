@@ -72,7 +72,7 @@ func (tp *TP) HandlePollRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := store.Delete(sd); err != nil {
+	if err := store.DeleteByPollSecret(last); err != nil {
 		tp.getLog(r).WithError(err).Warn("store delete")
 		http.Error(w, `{"error": "internal server error"}`, http.StatusInternalServerError)
 		return
