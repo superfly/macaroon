@@ -55,7 +55,7 @@ func (tp *TP) HandlePollRequest(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.EscapedPath(), "/")
 	last := parts[len(parts)-1]
 
-	sd, err := store.GetByPollSecret(last)
+	sd, err := store.GetByPollSecret(r.Context(), last)
 	if err != nil || sd == nil {
 		tp.getLog(r).WithError(err).Warn("store lookup by poll secret")
 		http.Error(w, `{"error": "not found"}`, http.StatusNotFound)
@@ -72,7 +72,7 @@ func (tp *TP) HandlePollRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := store.DeleteByPollSecret(last); err != nil {
+	if err := store.DeleteByPollSecret(r.Context(), last); err != nil {
 		tp.getLog(r).WithError(err).Warn("store delete")
 		http.Error(w, `{"error": "internal server error"}`, http.StatusInternalServerError)
 		return
@@ -106,7 +106,7 @@ func (tp *TP) UserRequestMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		sd, err := store.GetByUserSecret(userSecret)
+		sd, err := store.GetByUserSecret(r.Context(), userSecret)
 		if err != nil || sd == nil {
 			tp.getLog(r).WithError(err).Warn("store lookup by poll secret")
 			http.Error(w, `{"error": "not found"}`, http.StatusNotFound)
@@ -165,9 +165,9 @@ func (tp *TP) RespondPoll(w http.ResponseWriter, r *http.Request) string {
 		return ""
 	}
 
-	_, pollSecret, err := store.Put(&StoreData{Ticket: fd.ticket})
+	_, pollSecret, err := store.Insert(r.Context(), &StoreData{Ticket: fd.ticket})
 	if err != nil {
-		tp.getLog(r).WithError(err).Warn("store put")
+		tp.getLog(r).WithError(err).Warn("store insert")
 		http.Error(w, `{"error": "internal server error"}`, http.StatusInternalServerError)
 		return ""
 	}
@@ -179,12 +179,12 @@ func (tp *TP) RespondPoll(w http.ResponseWriter, r *http.Request) string {
 	return pollSecret
 }
 
-func (tp *TP) DischargePoll(pollSecret string, caveats ...macaroon.Caveat) error {
-	return tp.dischargePoller(pollSecret, "", caveats...)
+func (tp *TP) DischargePoll(ctx context.Context, pollSecret string, caveats ...macaroon.Caveat) error {
+	return tp.dischargePoller(ctx, pollSecret, "", caveats...)
 }
 
-func (tp *TP) AbortPoll(pollSecret string, message string) error {
-	return tp.abortPoller(pollSecret, "", message)
+func (tp *TP) AbortPoll(ctx context.Context, pollSecret string, message string) error {
+	return tp.abortPoller(ctx, pollSecret, "", message)
 }
 
 func (tp *TP) RespondUserInteractive(w http.ResponseWriter, r *http.Request) string {
@@ -196,9 +196,9 @@ func (tp *TP) RespondUserInteractive(w http.ResponseWriter, r *http.Request) str
 		return ""
 	}
 
-	userSecret, pollSecret, err := store.Put(&StoreData{Ticket: fd.ticket})
+	userSecret, pollSecret, err := store.Insert(r.Context(), &StoreData{Ticket: fd.ticket})
 	if err != nil {
-		tp.getLog(r).WithError(err).Warn("store put")
+		tp.getLog(r).WithError(err).Warn("store insert")
 		http.Error(w, `{"error": "internal server error"}`, http.StatusInternalServerError)
 		return ""
 	}
@@ -213,15 +213,15 @@ func (tp *TP) RespondUserInteractive(w http.ResponseWriter, r *http.Request) str
 	return userSecret
 }
 
-func (tp *TP) DischargeUserInteractive(userSecret string, caveats ...macaroon.Caveat) error {
-	return tp.dischargePoller("", userSecret, caveats...)
+func (tp *TP) DischargeUserInteractive(ctx context.Context, userSecret string, caveats ...macaroon.Caveat) error {
+	return tp.dischargePoller(ctx, "", userSecret, caveats...)
 }
 
-func (tp *TP) AbortUserInteractive(userSecret string, message string) error {
-	return tp.abortPoller("", userSecret, message)
+func (tp *TP) AbortUserInteractive(ctx context.Context, userSecret string, message string) error {
+	return tp.abortPoller(ctx, "", userSecret, message)
 }
 
-func (tp *TP) dischargePoller(pollSecret, userSecret string, caveats ...macaroon.Caveat) error {
+func (tp *TP) dischargePoller(ctx context.Context, pollSecret, userSecret string, caveats ...macaroon.Caveat) error {
 	if tp.Store == nil {
 		return errors.New("no store")
 	}
@@ -231,9 +231,9 @@ func (tp *TP) dischargePoller(pollSecret, userSecret string, caveats ...macaroon
 		err error
 	)
 	if pollSecret != "" {
-		sd, err = tp.Store.GetByPollSecret(pollSecret)
+		sd, err = tp.Store.GetByPollSecret(ctx, pollSecret)
 	} else {
-		sd, err = tp.Store.GetByUserSecret(userSecret)
+		sd, err = tp.Store.GetByUserSecret(ctx, userSecret)
 	}
 	if err != nil {
 		return err
@@ -261,14 +261,19 @@ func (tp *TP) dischargePoller(pollSecret, userSecret string, caveats ...macaroon
 	sd.ResponseBody = jresp
 	sd.ResponseStatus = http.StatusOK
 
-	if _, _, err := tp.Store.Put(sd); err != nil {
+	if pollSecret != "" {
+		err = tp.Store.UpdateByPollSecret(ctx, pollSecret, sd)
+	} else {
+		err = tp.Store.UpdateByUserSecret(ctx, userSecret, sd)
+	}
+	if err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (tp *TP) abortPoller(pollSecret, userSecret string, message string) error {
+func (tp *TP) abortPoller(ctx context.Context, pollSecret, userSecret string, message string) error {
 	if tp.Store == nil {
 		return errors.New("no store")
 	}
@@ -278,9 +283,9 @@ func (tp *TP) abortPoller(pollSecret, userSecret string, message string) error {
 		err error
 	)
 	if pollSecret != "" {
-		sd, err = tp.Store.GetByPollSecret(pollSecret)
+		sd, err = tp.Store.GetByPollSecret(ctx, pollSecret)
 	} else {
-		sd, err = tp.Store.GetByUserSecret(userSecret)
+		sd, err = tp.Store.GetByUserSecret(ctx, userSecret)
 	}
 	if err != nil {
 		return err
@@ -294,7 +299,12 @@ func (tp *TP) abortPoller(pollSecret, userSecret string, message string) error {
 	sd.ResponseBody = jresp
 	sd.ResponseStatus = http.StatusOK
 
-	if _, _, err := tp.Store.Put(sd); err != nil {
+	if pollSecret != "" {
+		err = tp.Store.UpdateByPollSecret(ctx, pollSecret, sd)
+	} else {
+		err = tp.Store.UpdateByUserSecret(ctx, userSecret, sd)
+	}
+	if err != nil {
 		return err
 	}
 

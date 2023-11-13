@@ -1,10 +1,12 @@
 package tp
 
 import (
+	"context"
 	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/crypto/blake2b"
@@ -17,13 +19,16 @@ type StoreData struct {
 }
 
 type Store interface {
-	Put(*StoreData) (userSecret, pollSecret string, err error)
+	Insert(context.Context, *StoreData) (userSecret, pollSecret string, err error)
 
-	DeleteByPollSecret(string) error
-	DeleteByUserSecret(string) error
+	GetByPollSecret(context.Context, string) (*StoreData, error)
+	GetByUserSecret(context.Context, string) (*StoreData, error)
 
-	GetByPollSecret(string) (*StoreData, error)
-	GetByUserSecret(string) (*StoreData, error)
+	UpdateByPollSecret(context.Context, string, *StoreData) error
+	UpdateByUserSecret(context.Context, string, *StoreData) error
+
+	DeleteByPollSecret(context.Context, string) error
+	DeleteByUserSecret(context.Context, string) error
 
 	UserSecretMunger
 }
@@ -35,12 +40,11 @@ type UserSecretMunger interface {
 
 type MemoryStore struct {
 	UserSecretMunger
-	Cache  *lru.Cache[string, *StoreData]
-	secret []byte
+	Cache *lru.Cache[string, *lockedStoreData]
 }
 
 func NewMemoryStore(m UserSecretMunger, size int) (*MemoryStore, error) {
-	cache, err := lru.New[string, *StoreData](size)
+	cache, err := lru.New[string, *lockedStoreData](size)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +52,6 @@ func NewMemoryStore(m UserSecretMunger, size int) (*MemoryStore, error) {
 	return &MemoryStore{
 		Cache:            cache,
 		UserSecretMunger: m,
-		secret:           randBytes(32),
 	}, nil
 }
 
@@ -58,66 +61,109 @@ var (
 	errNotFound = errors.New("not found")
 )
 
-func (s *MemoryStore) Put(sd *StoreData) (userSecret, pollSecret string, err error) {
-	userSecret, pollSecret = s.ticketSecrets(sd.Ticket)
-	s.Cache.Add("u"+digest(userSecret), sd)
-	s.Cache.Add("p"+digest(pollSecret), sd)
-	return
-}
+const secretSize = 16
 
-func (s *MemoryStore) DeleteByPollSecret(pollSecret string) error {
-	sd, err := s.GetByPollSecret(pollSecret)
-	if err != nil {
-		return err
+func (s *MemoryStore) Insert(_ context.Context, sd *StoreData) (string, string, error) {
+	us := randHex(secretSize)
+	uk := userSecretKey(us)
+	ps := randHex(secretSize)
+	pk := pollSecretKey(ps)
+
+	lsd := &lockedStoreData{
+		StoreData:     *sd,
+		userSecretKey: uk,
+		pollSecretKey: pk,
 	}
-	return s.delete(sd)
+
+	s.Cache.Add(uk, lsd)
+	s.Cache.Add(pk, lsd)
+
+	return us, ps, nil
 }
 
-func (s *MemoryStore) DeleteByUserSecret(userSecret string) error {
-	sd, err := s.GetByUserSecret(userSecret)
-	if err != nil {
-		return err
+func (s *MemoryStore) GetByPollSecret(_ context.Context, pollSecret string) (*StoreData, error) {
+	lsd, _ := s.Cache.Get(pollSecretKey(pollSecret))
+	return lsd.getStoreData()
+}
+
+func (s *MemoryStore) GetByUserSecret(_ context.Context, userSecret string) (*StoreData, error) {
+	lsd, _ := s.Cache.Get(userSecretKey(userSecret))
+	return lsd.getStoreData()
+}
+
+func (s *MemoryStore) UpdateByPollSecret(_ context.Context, pollSecret string, sd *StoreData) error {
+	lsd, _ := s.Cache.Get(pollSecretKey(pollSecret))
+	return lsd.updateStoreData(sd)
+}
+
+func (s *MemoryStore) UpdateByUserSecret(_ context.Context, userSecret string, sd *StoreData) error {
+	lsd, _ := s.Cache.Get(userSecretKey(userSecret))
+	return lsd.updateStoreData(sd)
+}
+
+func (s *MemoryStore) DeleteByPollSecret(ctx context.Context, pollSecret string) error {
+	if lsd, _ := s.Cache.Get(pollSecretKey(pollSecret)); lsd != nil {
+		s.Cache.Remove(lsd.pollSecretKey)
+		s.Cache.Remove(lsd.userSecretKey)
+		return nil
 	}
-	return s.delete(sd)
+
+	return errNotFound
 }
 
-func (s *MemoryStore) delete(sd *StoreData) error {
-	userSecret, pollSecret := s.ticketSecrets(sd.Ticket)
-	s.Cache.Remove("u" + digest(userSecret))
-	s.Cache.Remove("p" + digest(pollSecret))
+func (s *MemoryStore) DeleteByUserSecret(ctx context.Context, userSecret string) error {
+	if lsd, _ := s.Cache.Get(userSecretKey(userSecret)); lsd != nil {
+		s.Cache.Remove(lsd.pollSecretKey)
+		s.Cache.Remove(lsd.userSecretKey)
+		return nil
+	}
+
+	return errNotFound
+}
+
+func userSecretKey(userSecret string) string { return "u" + digest(userSecret) }
+func pollSecretKey(userSecret string) string { return "p" + digest(userSecret) }
+
+type lockedStoreData struct {
+	StoreData
+	userSecretKey string
+	pollSecretKey string
+	sync.RWMutex
+}
+
+func (lsd *lockedStoreData) getStoreData() (*StoreData, error) {
+	if lsd == nil {
+		return nil, errNotFound
+	}
+
+	lsd.RLock()
+	defer lsd.RUnlock()
+
+	sd := lsd.StoreData
+
+	return &sd, nil
+}
+
+func (lsd *lockedStoreData) updateStoreData(sd *StoreData) error {
+	if lsd == nil {
+		return errNotFound
+	}
+
+	lsd.Lock()
+	defer lsd.Unlock()
+
+	lsd.StoreData = *sd
+
 	return nil
-}
-
-func (s *MemoryStore) GetByPollSecret(pollSecret string) (*StoreData, error) {
-	if sd, ok := s.Cache.Get("p" + digest(pollSecret)); ok {
-		return sd, nil
-	}
-	return nil, errNotFound
-}
-
-func (s *MemoryStore) GetByUserSecret(userSecret string) (*StoreData, error) {
-	if sd, ok := s.Cache.Get("u" + digest(userSecret)); ok {
-		return sd, nil
-	}
-	return nil, errNotFound
-}
-
-func (s *MemoryStore) ticketSecrets(t []byte) (string, string) {
-	h, err := blake2b.New(32, s.secret)
-	if err != nil {
-		panic(err)
-	}
-	if _, err = h.Write(t); err != nil {
-		panic(err)
-	}
-	d := h.Sum(nil)
-
-	return hex.EncodeToString(d[:16]), hex.EncodeToString(d[16:])
 }
 
 func digest[T string | []byte](d T) string {
 	digest := blake2b.Sum256([]byte(d))
 	return hex.EncodeToString(digest[:])
+}
+
+func randHex(n int) string {
+	return hex.EncodeToString(randBytes(n))
 }
 
 type PrefixMunger string

@@ -93,7 +93,7 @@ func TestTP(t *testing.T) {
 			case <-pollSecretSet:
 				select {
 				case <-time.After(5 * time.Millisecond):
-					assert.NoError(t, tp.DischargePoll(pollSecret, myCaveat("dis-cav")))
+					assert.NoError(t, tp.DischargePoll(context.Background(), pollSecret, myCaveat("dis-cav")))
 				case <-ctx.Done():
 					panic("oh no")
 				}
@@ -130,7 +130,7 @@ func TestTP(t *testing.T) {
 			},
 			UserURLCallback: func(_ context.Context, url string) error {
 				time.Sleep(10 * time.Millisecond)
-				assert.NoError(t, tp.DischargeUserInteractive(userSecret, myCaveat("dis-cav")))
+				assert.NoError(t, tp.DischargeUserInteractive(context.Background(), userSecret, myCaveat("dis-cav")))
 				return nil
 			},
 		}
