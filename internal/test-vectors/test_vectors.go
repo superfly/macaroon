@@ -18,6 +18,7 @@ func main() {
 	v := &vectors{
 		Location:  randHex(16),
 		Key:       macaroon.NewSigningKey(),
+		TPKey:     macaroon.NewEncryptionKey(),
 		Macaroons: map[string]string{},
 
 		// map[baseMacaroon]map[caveatsBeingAdded]resultingMacaroon
@@ -59,11 +60,10 @@ func main() {
 
 	withTP := ptr(*aBase)
 	withTP.UnsafeCaveats = *macaroon.NewCaveatSet()
-	dKey := macaroon.NewEncryptionKey()
-	withTP.Add3P(dKey, "discharged")
-	withTP.Add3P(macaroon.NewEncryptionKey(), "undischarged")
+	withTP.Add3P(v.TPKey, "discharged")
+	withTP.Add3P(v.TPKey, "undischarged")
 	ticket, _ := withTP.ThirdPartyTicket("discharged")
-	_, dm, _ := macaroon.DischargeTicket(dKey, "discharged", ticket)
+	_, dm, _ := macaroon.DischargeTicket(v.TPKey, "discharged", ticket)
 	dmTok, _ := dm.Encode()
 	permTok, _ := withTP.Encode()
 	v.WithTPs = macaroon.ToAuthorizationHeader(permTok, dmTok)
@@ -79,6 +79,7 @@ func main() {
 type vectors struct {
 	Location    string                       `json:"location"`
 	Key         []byte                       `json:"key"`
+	TPKey       []byte                       `json:"tp_key"`
 	KID         []byte                       `json:"kid"`
 	Macaroons   map[string]string            `json:"macaroons"`
 	Attenuation map[string]map[string]string `json:"attenuation"`
