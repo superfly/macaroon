@@ -8,10 +8,13 @@ import (
 	"encoding/json"
 	"math"
 	"os"
+	"slices"
 
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/auth"
 	"github.com/superfly/macaroon/resset"
+	msgpack "github.com/vmihailenco/msgpack/v5"
+	"golang.org/x/exp/maps"
 )
 
 func main() {
@@ -163,6 +166,23 @@ func (c *mapCaveat) Name() string                      { return "Map" }
 func (c *mapCaveat) Prohibits(f macaroon.Access) error { return nil }
 func (c *mapCaveat) IsAttestation() bool               { return false }
 
+var _ msgpack.CustomEncoder = mapCaveat{}
+
+func (c mapCaveat) EncodeMsgpack(enc *msgpack.Encoder) error {
+	enc.EncodeMapLen(len(c))
+
+	// map ordering is random and we need canonical encoding
+	keys := maps.Keys(c)
+	slices.Sort(keys)
+
+	for _, k := range keys {
+		enc.Encode(k)
+		enc.Encode(c[k])
+	}
+
+	return nil
+}
+
 type intResourceSetCaveat struct {
 	Body resset.ResourceSet[uint64]
 }
@@ -205,6 +225,32 @@ func init()                                               { macaroon.RegisterCav
 func (c *structCaveat) CaveatType() macaroon.CaveatType   { return cavStruct }
 func (c *structCaveat) Name() string                      { return "Struct" }
 func (c *structCaveat) Prohibits(f macaroon.Access) error { return nil }
+
+var _ msgpack.CustomEncoder = mapCaveat{}
+
+func (c structCaveat) EncodeMsgpack(enc *msgpack.Encoder) error {
+	enc.EncodeArrayLen(8)
+	enc.Encode(c.StringField)
+	enc.Encode(c.IntField)
+	enc.Encode(c.UintField)
+	enc.Encode(c.SliceField)
+
+	// map ordering is random and we need canonical encoding
+	enc.EncodeMapLen(len(c.MapField))
+	keys := maps.Keys(c.MapField)
+	slices.Sort(keys)
+
+	for _, k := range keys {
+		enc.Encode(k)
+		enc.Encode(c.MapField[k])
+	}
+
+	enc.Encode(c.IntResourceSetField)
+	enc.Encode(c.StringResourceSetField)
+	enc.Encode(c.PrefixResourceSetField)
+
+	return nil
+}
 
 func keyFingerprint(key []byte) []byte {
 	digest := sha256.Sum256(key)
