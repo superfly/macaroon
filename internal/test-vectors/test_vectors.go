@@ -88,6 +88,7 @@ type vectors struct {
 }
 
 var caveats = macaroon.NewCaveatSet(
+	&macaroon.BindToParentToken{1, 2, 3},
 	ptr(stringCaveat("foo")),
 	ptr(int64Caveat(-123)),
 	ptr(uint64Caveat(123)),
