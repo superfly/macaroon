@@ -18,7 +18,17 @@ func ZeroID[ID uint64 | string]() (ret ID) {
 }
 
 // ResourceSet is a helper type for defining caveat types specifying
-// object->permission mappings.
+// object->permission mappings. ResourceSets implement custom msgpack
+// marshalling. As a result, they should be wrapped in a struct rather than
+// simply aliasing the type. For example, don't do this:
+//
+//	type myCaveat resset.ResourceSet[uint64]
+//
+// Instead, do this:
+//
+//	type myCaveat struct {
+//	  Resources resset.ResourceSet[uint64]
+//	}
 type ResourceSet[ID uint64 | string | Prefix] map[ID]Action
 
 func New[ID uint64 | string | Prefix](p Action, ids ...ID) ResourceSet[ID] {

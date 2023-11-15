@@ -93,19 +93,19 @@ var caveats = macaroon.NewCaveatSet(
 	ptr(int64Caveat(-123)),
 	ptr(uint64Caveat(123)),
 	&sliceCaveat{1, 2, 3},
-	&mapCaveat{"foo": "bar"},
-	&intResourceSetCaveat{123: resset.ActionAll},
-	&stringResourceSetCaveat{"foo": resset.ActionAll},
-	&prefixResourceSetCaveat{"foo": resset.ActionAll},
+	&mapCaveat{"c": "c", "a": "a", "b": "b"},
+	&intResourceSetCaveat{Body: resset.ResourceSet[uint64]{3: resset.ActionAll, 1: resset.ActionAll, 2: resset.ActionAll}},
+	&stringResourceSetCaveat{Body: resset.ResourceSet[string]{"c": resset.ActionAll, "a": resset.ActionAll, "b": resset.ActionAll}},
+	&prefixResourceSetCaveat{Body: resset.ResourceSet[resset.Prefix]{"c": resset.ActionAll, "a": resset.ActionAll, "b": resset.ActionAll}},
 	&structCaveat{
 		StringField:            "foo",
 		IntField:               -123,
 		UintField:              123,
 		SliceField:             []byte{1, 2, 3},
-		MapField:               map[string]string{"foo": "bar"},
-		IntResourceSetField:    resset.ResourceSet[uint64]{123: resset.ActionAll},
-		StringResourceSetField: resset.ResourceSet[string]{"foo": resset.ActionAll},
-		PrefixResourceSetField: resset.ResourceSet[resset.Prefix]{"foo": resset.ActionAll},
+		MapField:               map[string]string{"c": "c", "a": "a", "b": "b"},
+		IntResourceSetField:    resset.ResourceSet[uint64]{3: resset.ActionAll, 1: resset.ActionAll, 2: resset.ActionAll},
+		StringResourceSetField: resset.ResourceSet[string]{"c": resset.ActionAll, "a": resset.ActionAll, "b": resset.ActionAll},
+		PrefixResourceSetField: resset.ResourceSet[resset.Prefix]{"c": resset.ActionAll, "a": resset.ActionAll, "b": resset.ActionAll},
 	},
 	auth.RequireUser(123),
 	auth.RequireOrganization(123),
@@ -163,21 +163,27 @@ func (c *mapCaveat) Name() string                      { return "Map" }
 func (c *mapCaveat) Prohibits(f macaroon.Access) error { return nil }
 func (c *mapCaveat) IsAttestation() bool               { return false }
 
-type intResourceSetCaveat resset.ResourceSet[uint64]
+type intResourceSetCaveat struct {
+	Body resset.ResourceSet[uint64]
+}
 
 func init()                                                       { macaroon.RegisterCaveatType(new(intResourceSetCaveat)) }
 func (c *intResourceSetCaveat) CaveatType() macaroon.CaveatType   { return cavIntResourceSet }
 func (c *intResourceSetCaveat) Name() string                      { return "IntResourceSet" }
 func (c *intResourceSetCaveat) Prohibits(f macaroon.Access) error { return nil }
 
-type stringResourceSetCaveat resset.ResourceSet[string]
+type stringResourceSetCaveat struct {
+	Body resset.ResourceSet[string]
+}
 
 func init()                                                          { macaroon.RegisterCaveatType(new(stringResourceSetCaveat)) }
 func (c *stringResourceSetCaveat) CaveatType() macaroon.CaveatType   { return cavStringResourceSet }
 func (c *stringResourceSetCaveat) Name() string                      { return "StringResourceSet" }
 func (c *stringResourceSetCaveat) Prohibits(f macaroon.Access) error { return nil }
 
-type prefixResourceSetCaveat resset.ResourceSet[resset.Prefix]
+type prefixResourceSetCaveat struct {
+	Body resset.ResourceSet[resset.Prefix]
+}
 
 func init()                                                          { macaroon.RegisterCaveatType(new(prefixResourceSetCaveat)) }
 func (c *prefixResourceSetCaveat) CaveatType() macaroon.CaveatType   { return cavPrefixResourceSet }
