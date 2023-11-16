@@ -75,7 +75,7 @@ func WithAuthentication(hostname, token string) ClientOption {
 // attempts at user-interactive discharge flow will fail)
 func WithUserURLCallback(cb func(ctx context.Context, url string) error) ClientOption {
 	return func(c *Client) {
-		c.UserURLCallback = cb
+		c.userURLCallback = cb
 	}
 }
 
@@ -84,15 +84,24 @@ func WithUserURLCallback(cb func(ctx context.Context, url string) error) ClientO
 // ready. This is called the first time with a zero duration. (Optional)
 func WithPollingBackoff(nextBackoff func(lastBO time.Duration) (nextBO time.Duration)) ClientOption {
 	return func(c *Client) {
-		c.PollBackoffNext = nextBackoff
+		c.pollBackoffNext = nextBackoff
+	}
+}
+
+// WithIgnoredThirdParties instructs the client to disregard third party caveats
+// for the specified locations.
+func WithIgnoredThirdParties(tps ...string) ClientOption {
+	return func(c *Client) {
+		c.ignored = append(c.ignored, tps...)
 	}
 }
 
 type Client struct {
 	firstPartyLocation string
 	http               *http.Client
-	UserURLCallback    func(ctx context.Context, url string) error
-	PollBackoffNext    func(lastBO time.Duration) (nextBO time.Duration)
+	userURLCallback    func(ctx context.Context, url string) error
+	pollBackoffNext    func(lastBO time.Duration) (nextBO time.Duration)
+	ignored            []string
 }
 
 // NewClient returns a Client for discharging third party caveats in macaroons
@@ -110,8 +119,8 @@ func NewClient(firstPartyLocation string, opts ...ClientOption) *Client {
 		client.http = http.DefaultClient
 	}
 
-	if client.PollBackoffNext == nil {
-		client.PollBackoffNext = defaultBackoff
+	if client.pollBackoffNext == nil {
+		client.pollBackoffNext = defaultBackoff
 	}
 
 	return client
@@ -184,6 +193,10 @@ func (c *Client) undischargedTickets(tokenHeader string) (map[string][][]byte, e
 		for loc, ticket := range tickets {
 			ret[loc] = append(ret[loc], ticket)
 		}
+	}
+
+	for _, loc := range c.ignored {
+		delete(ret, loc)
 	}
 
 	return ret, nil
@@ -290,7 +303,7 @@ func (c *Client) doUserInteractive(ctx context.Context, ui *jsonUserInteractive)
 	if ui.PollURL == "" || ui.UserURL == "" {
 		return "", errors.New("bad discharge response")
 	}
-	if c.UserURLCallback == nil {
+	if c.userURLCallback == nil {
 		return "", errors.New("missing user-url callback")
 	}
 
@@ -302,8 +315,8 @@ func (c *Client) doUserInteractive(ctx context.Context, ui *jsonUserInteractive)
 }
 
 func (c *Client) nextBO(lastBO time.Duration) time.Duration {
-	if c.PollBackoffNext != nil {
-		return c.PollBackoffNext(lastBO)
+	if c.pollBackoffNext != nil {
+		return c.pollBackoffNext(lastBO)
 	}
 	if lastBO == 0 {
 		return time.Second
@@ -312,8 +325,8 @@ func (c *Client) nextBO(lastBO time.Duration) time.Duration {
 }
 
 func (c *Client) openUserInteractiveURL(ctx context.Context, url string) error {
-	if c.UserURLCallback != nil {
-		return c.UserURLCallback(ctx, url)
+	if c.userURLCallback != nil {
+		return c.userURLCallback(ctx, url)
 	}
 
 	return errors.New("client not configured for opening URLs")
