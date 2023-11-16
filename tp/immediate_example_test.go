@@ -70,7 +70,7 @@ func ExampleTP_RespondDischarge() {
 	fmt.Printf("validation error without 3p discharge token: %v\n", err)
 
 	client := NewClient(firstPartyLocation,
-		WithBearerAuthentication("127.0.0.1", "trustno1"),
+		WithBearerAuthentication(tp.Location, "trustno1"),
 	)
 
 	firstPartyMacaroon, err = client.FetchDischargeTokens(context.Background(), firstPartyMacaroon)

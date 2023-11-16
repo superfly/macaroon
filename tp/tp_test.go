@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -75,12 +74,9 @@ func TestTP(t *testing.T) {
 				tp.RespondDischarge(w, r)
 			})
 
-			u, err := url.Parse(tp.Location)
-			assert.NoError(t, err)
-
 			hdr := genFP(t, tp)
 			c := NewClient(firstPartyLocation,
-				WithBearerAuthentication(u.Hostname(), "my-token"),
+				WithBearerAuthentication(tp.Location, "my-token"),
 			)
 			hdr, err = c.FetchDischargeTokens(context.Background(), hdr)
 			assert.NoError(t, err)
@@ -101,7 +97,7 @@ func TestTP(t *testing.T) {
 
 			hdr := genFP(t, tp)
 			c := NewClient(firstPartyLocation,
-				WithBearerAuthentication("wrong.com", "my-token"),
+				WithBearerAuthentication("https://wrong.com", "my-token"),
 			)
 			hdr, err = c.FetchDischargeTokens(context.Background(), hdr)
 			assert.NoError(t, err)

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -42,14 +43,18 @@ func WithHTTP(h *http.Client) ClientOption {
 }
 
 // WithBearerAuthentication specifies a token to be sent in requests to the
-// specified host in the `Authorization: Bearer` header.
-func WithBearerAuthentication(hostname, token string) ClientOption {
-	return WithAuthentication(hostname, "Bearer "+token)
+// specified third party in the `Authorization: Bearer` header.
+func WithBearerAuthentication(tpLocation, token string) ClientOption {
+	return WithAuthentication(tpLocation, "Bearer "+token)
 }
 
 // WithBearerAuthentication specifies a token to be sent in requests to the
-// specified host in the `Authorization` header.
-func WithAuthentication(hostname, token string) ClientOption {
+// specified third party in the `Authorization` header.
+func WithAuthentication(tpLocation, token string) ClientOption {
+	if u, err := url.Parse(tpLocation); err == nil && u.IsAbs() {
+		tpLocation = u.Hostname()
+	}
+
 	return func(c *Client) {
 		if c.http == nil {
 			cpy := *http.DefaultClient
@@ -58,11 +63,11 @@ func WithAuthentication(hostname, token string) ClientOption {
 
 		switch t := c.http.Transport.(type) {
 		case *authenticatedHTTP:
-			t.auth[hostname] = token
+			t.auth[tpLocation] = token
 		default:
 			c.http.Transport = &authenticatedHTTP{
 				t:    t,
-				auth: map[string]string{hostname: token},
+				auth: map[string]string{tpLocation: token},
 			}
 		}
 	}
@@ -354,6 +359,7 @@ type authenticatedHTTP struct {
 }
 
 func (a *authenticatedHTTP) RoundTrip(r *http.Request) (*http.Response, error) {
+
 	if cred := a.auth[r.URL.Hostname()]; cred != "" {
 		r.Header.Set("Authorization", cred)
 	}
