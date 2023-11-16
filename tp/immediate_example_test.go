@@ -28,7 +28,7 @@ func newImmediateServer(tp *TP) *immediateSever {
 }
 
 func (is *immediateSever) handleInitRequest(w http.ResponseWriter, r *http.Request) {
-	if username, password, _ := r.BasicAuth(); username != "mulder" || password != "trustno1" {
+	if r.Header.Get("Authorization") != "Bearer trustno1" {
 		is.tp.RespondError(w, r, http.StatusUnauthorized, "bad client authentication")
 		return
 	}
@@ -69,10 +69,9 @@ func ExampleTP_RespondDischarge() {
 	_, err = validateFirstPartyMacaroon(firstPartyMacaroon)
 	fmt.Printf("validation error without 3p discharge token: %v\n", err)
 
-	client := &Client{
-		FirstPartyLocation: firstPartyLocation,
-		HTTP:               basicAuthClient("mulder", "trustno1"),
-	}
+	client := NewClient(firstPartyLocation,
+		WithBearerAuthentication("127.0.0.1", "trustno1"),
+	)
 
 	firstPartyMacaroon, err = client.FetchDischargeTokens(context.Background(), firstPartyMacaroon)
 	if err != nil {

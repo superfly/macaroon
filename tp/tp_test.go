@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -54,11 +55,58 @@ func TestTP(t *testing.T) {
 		})
 
 		hdr := genFP(t, tp, myCaveat("fp-cav"))
-		c := &Client{FirstPartyLocation: firstPartyLocation}
+		c := NewClient(firstPartyLocation)
 		hdr, err = c.FetchDischargeTokens(context.Background(), hdr)
 		assert.NoError(t, err)
 		cavs := checkFP(t, hdr)
 		assert.Equal(t, []string{"fp-cav", "dis-cav"}, cavs)
+	})
+
+	t.Run("WithBearerAuthentication", func(t *testing.T) {
+		t.Run("sends token to correct host", func(t *testing.T) {
+			handleInit = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Authorization") != "Bearer my-token" {
+					tp.RespondError(w, r, http.StatusUnauthorized, "bad client authentication")
+					return
+				}
+				_, err := CaveatsFromRequest(r)
+				assert.NoError(t, err)
+
+				tp.RespondDischarge(w, r)
+			})
+
+			u, err := url.Parse(tp.Location)
+			assert.NoError(t, err)
+
+			hdr := genFP(t, tp)
+			c := NewClient(firstPartyLocation,
+				WithBearerAuthentication(u.Hostname(), "my-token"),
+			)
+			hdr, err = c.FetchDischargeTokens(context.Background(), hdr)
+			assert.NoError(t, err)
+			checkFP(t, hdr)
+		})
+
+		t.Run("doesn't send token to wrong host", func(t *testing.T) {
+			handleInit = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Authorization") != "" {
+					tp.RespondError(w, r, http.StatusUnauthorized, "bad client authentication")
+					return
+				}
+				_, err := CaveatsFromRequest(r)
+				assert.NoError(t, err)
+
+				tp.RespondDischarge(w, r)
+			})
+
+			hdr := genFP(t, tp)
+			c := NewClient(firstPartyLocation,
+				WithBearerAuthentication("wrong.com", "my-token"),
+			)
+			hdr, err = c.FetchDischargeTokens(context.Background(), hdr)
+			assert.NoError(t, err)
+			checkFP(t, hdr)
+		})
 	})
 
 	t.Run("poll response", func(t *testing.T) {
@@ -75,15 +123,14 @@ func TestTP(t *testing.T) {
 
 		hdr := genFP(t, tp, myCaveat("fp-cav"))
 
-		c := &Client{
-			FirstPartyLocation: firstPartyLocation,
-			PollBackoffNext: func(last time.Duration) time.Duration {
+		c := NewClient(firstPartyLocation,
+			WithPollingBackoff(func(last time.Duration) time.Duration {
 				if last == 0 {
 					return 10 * time.Millisecond
 				}
 				return 10 * time.Second
-			},
-		}
+			}),
+		)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -120,20 +167,19 @@ func TestTP(t *testing.T) {
 
 		hdr := genFP(t, tp, myCaveat("fp-cav"))
 
-		c := &Client{
-			FirstPartyLocation: firstPartyLocation,
-			PollBackoffNext: func(last time.Duration) time.Duration {
+		c := NewClient(firstPartyLocation,
+			WithPollingBackoff(func(last time.Duration) time.Duration {
 				if last == 0 {
 					return 10 * time.Millisecond
 				}
 				return 10 * time.Second
-			},
-			UserURLCallback: func(_ context.Context, url string) error {
+			}),
+			WithUserURLCallback(func(_ context.Context, url string) error {
 				time.Sleep(10 * time.Millisecond)
 				assert.NoError(t, tp.DischargeUserInteractive(context.Background(), userSecret, myCaveat("dis-cav")))
 				return nil
-			},
-		}
+			}),
+		)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()

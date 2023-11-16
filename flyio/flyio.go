@@ -1,6 +1,9 @@
 package flyio
 
-import "github.com/superfly/macaroon"
+import (
+	"github.com/superfly/macaroon"
+	"github.com/superfly/macaroon/tp"
+)
 
 const (
 	// well-known locations
@@ -13,4 +16,10 @@ const (
 // permission and discharge tokens.
 func ParsePermissionAndDischargeTokens(header string) ([]byte, [][]byte, error) {
 	return macaroon.ParsePermissionAndDischargeTokens(header, LocationPermission)
+}
+
+// DischargeClient returns a *tp.Client suitable for discharging third party
+// caveats in fly.io permission tokens.
+func DischargeClient(opts ...tp.ClientOption) *tp.Client {
+	return tp.NewClient(LocationPermission, opts...)
 }

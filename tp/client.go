@@ -17,28 +17,100 @@ import (
 
 type ClientOption func(*Client)
 
+// WithHTTP specifies the HTTP client to use for requests to third parties.
+// Third parties may try to set cookies to expedite future discharge flows. This
+// may be facilitated by setting the http.Client's Jar field. With cookies
+// enabled it's important to use a different cookie jar and hence client when
+// fetching discharge tokens for multiple users.
+func WithHTTP(h *http.Client) ClientOption {
+	return func(c *Client) {
+		if c.http == nil {
+			c.http = h
+			return
+		}
+
+		if authed, isAuthed := c.http.Transport.(*authenticatedHTTP); isAuthed {
+			authed.t = h.Transport
+			cpy := *h
+			cpy.Transport = authed
+			c.http = &cpy
+			return
+		}
+
+		c.http = h
+	}
+}
+
+// WithBearerAuthentication specifies a token to be sent in requests to the
+// specified host in the `Authorization: Bearer` header.
+func WithBearerAuthentication(hostname, token string) ClientOption {
+	token = "Bearer " + token
+
+	return func(c *Client) {
+		if c.http == nil {
+			cpy := *http.DefaultClient
+			c.http = &cpy
+		}
+
+		switch t := c.http.Transport.(type) {
+		case *authenticatedHTTP:
+			t.auth[hostname] = token
+		default:
+			c.http.Transport = &authenticatedHTTP{
+				t:    t,
+				auth: map[string]string{hostname: token},
+			}
+		}
+	}
+}
+
+// WithUserURLCallback specifies a function to call when when the third party
+// needs to interact with the end-user directly. The provided URL should be
+// opened in the user's browser if possible. Otherwise it should be displayed to
+// the user and they should be instructed to open it themselves. (Optional, but
+// attempts at user-interactive discharge flow will fail)
+func WithUserURLCallback(cb func(ctx context.Context, url string) error) ClientOption {
+	return func(c *Client) {
+		c.UserURLCallback = cb
+	}
+}
+
+// WithPollingBackoff specifies a function determining how long to wait before
+// making the next request when polling the third party to see if a discharge is
+// ready. This is called the first time with a zero duration. (Optional)
+func WithPollingBackoff(nextBackoff func(lastBO time.Duration) (nextBO time.Duration)) ClientOption {
+	return func(c *Client) {
+		c.PollBackoffNext = nextBackoff
+	}
+}
+
 type Client struct {
-	// Location identifier for the party that issued the first party macaroon.
-	FirstPartyLocation string
+	firstPartyLocation string
+	http               *http.Client
+	UserURLCallback    func(ctx context.Context, url string) error
+	PollBackoffNext    func(lastBO time.Duration) (nextBO time.Duration)
+}
 
-	// HTTP client to use for requests to third parties. Third parties may try
-	// to set cookies to expedite future discharge flows. This may be
-	// facilitated by setting the http.Client's Jar field. With cookies enabled
-	// it's important to use a different cookie jar and hence client when
-	// fetching discharge tokens for multiple users.
-	HTTP *http.Client
+// NewClient returns a Client for discharging third party caveats in macaroons
+// issued by the specified first party.
+func NewClient(firstPartyLocation string, opts ...ClientOption) *Client {
+	client := &Client{
+		firstPartyLocation: firstPartyLocation,
+	}
 
-	// Function to call when when the third party needs to interact with the
-	// end-user directly. The provided URL should be opened in the user's
-	// browser if possible. Otherwise it should be displayed to the user and
-	// they should be instructed to open it themselves. (Optional, but attempts
-	// at user-interactive discharge flow will fail)
-	UserURLCallback func(ctx context.Context, url string) error
+	for _, opt := range opts {
+		opt(client)
+	}
 
-	// A function determining how long to wait before making the next request
-	// when polling the third party to see if a discharge is ready. This is
-	// called the first time with a zero duration. (Optional)
-	PollBackoffNext func(lastBO time.Duration) (nextBO time.Duration)
+	if client.http == nil {
+		client.http = http.DefaultClient
+	}
+
+	if client.PollBackoffNext == nil {
+		client.PollBackoffNext = defaultBackoff
+	}
+
+	return client
 }
 
 func (c *Client) NeedsDischarge(tokenHeader string) (bool, error) {
@@ -93,7 +165,7 @@ func (c *Client) undischargedTickets(tokenHeader string) (map[string][][]byte, e
 		return nil, err
 	}
 
-	perms, _, _, disToks, err := macaroon.FindPermissionAndDischargeTokens(toks, c.FirstPartyLocation)
+	perms, _, _, disToks, err := macaroon.FindPermissionAndDischargeTokens(toks, c.firstPartyLocation)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +218,7 @@ func (c *Client) doInitRequest(ctx context.Context, thirdPartyLocation string, t
 	}
 	hreq.Header.Set("Content-Type", "application/json")
 
-	hresp, err := c.http().Do(hreq)
+	hresp, err := c.http.Do(hreq)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +252,7 @@ func (c *Client) doPoll(ctx context.Context, pollURL string) (string, error) {
 
 pollLoop:
 	for {
-		hresp, err := c.http().Do(req)
+		hresp, err := c.http.Do(req)
 		if err != nil {
 			return "", err
 		}
@@ -243,13 +315,6 @@ func (c *Client) openUserInteractiveURL(ctx context.Context, url string) error {
 	return errors.New("client not configured for opening URLs")
 }
 
-func (c *Client) http() *http.Client {
-	if c.HTTP != nil {
-		return c.HTTP
-	}
-	return http.DefaultClient
-}
-
 func initURL(location string) string {
 	if strings.HasSuffix(location, "/") {
 		return location + InitPath[1:]
@@ -264,4 +329,31 @@ type Error struct {
 
 func (e Error) Error() string {
 	return fmt.Sprintf("tp error (%d): %s", e.StatusCode, e.Msg)
+}
+
+type authenticatedHTTP struct {
+	t    http.RoundTripper
+	auth map[string]string
+}
+
+func (a *authenticatedHTTP) RoundTrip(r *http.Request) (*http.Response, error) {
+	if cred := a.auth[r.URL.Hostname()]; cred != "" {
+		r.Header.Set("Authorization", cred)
+	}
+
+	return a.transport().RoundTrip(r)
+}
+
+func (a *authenticatedHTTP) transport() http.RoundTripper {
+	if a.t == nil {
+		return http.DefaultTransport
+	}
+	return a.t
+}
+
+func defaultBackoff(lastBO time.Duration) (nextBO time.Duration) {
+	if lastBO == 0 {
+		return time.Second
+	}
+	return 2 * lastBO
 }
