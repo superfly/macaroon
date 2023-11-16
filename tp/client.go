@@ -44,8 +44,12 @@ func WithHTTP(h *http.Client) ClientOption {
 // WithBearerAuthentication specifies a token to be sent in requests to the
 // specified host in the `Authorization: Bearer` header.
 func WithBearerAuthentication(hostname, token string) ClientOption {
-	token = "Bearer " + token
+	return WithAuthentication(hostname, "Bearer "+token)
+}
 
+// WithBearerAuthentication specifies a token to be sent in requests to the
+// specified host in the `Authorization` header.
+func WithAuthentication(hostname, token string) ClientOption {
 	return func(c *Client) {
 		if c.http == nil {
 			cpy := *http.DefaultClient
