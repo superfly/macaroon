@@ -21,6 +21,7 @@ func TestCaveatSerialization(t *testing.T) {
 		&MachineFeatureSet{Features: resset.New(resset.ActionRead, "123")},
 		&FromMachine{ID: "asdf"},
 		&Clusters{Clusters: resset.New(resset.ActionRead, "123")},
+		&NoAdminFeatures{},
 	)
 
 	b, err := json.Marshal(cs)
@@ -36,4 +37,61 @@ func TestCaveatSerialization(t *testing.T) {
 	cs2, err = macaroon.DecodeCaveats(b)
 	assert.NoError(t, err)
 	assert.Equal(t, cs, cs2)
+}
+
+func TestNoAdminFeatures(t *testing.T) {
+	cs := macaroon.NewCaveatSet(&NoAdminFeatures{})
+
+	yes := func(access *Access) {
+		t.Helper()
+		assert.NoError(t, cs.Validate(access))
+	}
+
+	no := func(access *Access, target error) {
+		t.Helper()
+		err := cs.Validate(access)
+		assert.Error(t, err)
+		assert.IsError(t, err, target)
+	}
+
+	yes(&Access{
+		DeprecatedOrgID: uptr(1),
+		Action:          resset.ActionAll,
+		Feature:         ptr("wg"),
+	})
+
+	yes(&Access{
+		DeprecatedOrgID: uptr(1),
+		Action:          resset.ActionRead,
+		Feature:         ptr("membership"),
+	})
+
+	yes(&Access{
+		DeprecatedOrgID: uptr(1),
+		Action:          resset.ActionAll,
+	})
+
+	no(&Access{
+		DeprecatedOrgID: uptr(1),
+		Action:          resset.ActionWrite,
+		Feature:         ptr("membership"),
+	}, resset.ErrUnauthorizedForAction)
+
+	no(&Access{
+		DeprecatedOrgID: uptr(1),
+		Action:          resset.ActionRead,
+		Feature:         ptr("unknown"),
+	}, resset.ErrUnauthorizedForResource)
+
+	no(&Access{
+		DeprecatedOrgID: uptr(1),
+		Action:          resset.ActionNone,
+		Feature:         ptr(""),
+	}, resset.ErrUnauthorizedForResource)
+
+	no(&Access{
+		DeprecatedOrgID: uptr(1),
+		Action:          resset.ActionNone,
+		Feature:         ptr(""),
+	}, resset.ErrUnauthorizedForResource)
 }

@@ -18,6 +18,7 @@ const (
 	CavMachineFeatureSet = macaroon.CavFlyioMachineFeatureSet
 	CavFromMachineSource = macaroon.CavFlyioFromMachineSource
 	CavClusters          = macaroon.CavFlyioClusters
+	CavNoAdminFeatures   = macaroon.CavNoAdminFeatures
 )
 
 type FromMachine struct {
@@ -232,4 +233,67 @@ func (c *Clusters) Prohibits(a macaroon.Access) error {
 	}
 
 	return c.Clusters.Prohibits(f.Cluster, f.Action)
+}
+
+var (
+	MemberFeatures = map[string]resset.Action{
+		"wg":           resset.ActionAll,
+		"domain":       resset.ActionAll,
+		"site":         resset.ActionAll,
+		"builder":      resset.ActionAll,
+		"addon":        resset.ActionAll,
+		"checks":       resset.ActionAll,
+		"litefs-cloud": resset.ActionAll,
+
+		"membership": resset.ActionRead,
+		"billing":    resset.ActionRead,
+
+		"deletion":         resset.ActionNone,
+		"document_signing": resset.ActionNone,
+	}
+)
+
+// NoAdminFeatures is a shorthand for specifying that the token isn't allowed to
+// access admin-only features. Same as:
+//
+//	resset.IfPresent{
+//	  Ifs: macaroon.NewCaveatSet(&FeatureSet{
+//	    "memberFeatureOne": resset.ActionAll,
+//	    "memberFeatureTwo": resset.ActionAll,
+//	    "memberFeatureNNN": resset.ActionAll,
+//	  }),
+//	  Else: resset.ActionAll
+//	}
+type NoAdminFeatures struct{}
+
+func init()                                                { macaroon.RegisterCaveatType(&NoAdminFeatures{}) }
+func (c *NoAdminFeatures) CaveatType() macaroon.CaveatType { return CavNoAdminFeatures }
+func (c *NoAdminFeatures) Name() string                    { return "NoAdminFeatures" }
+
+func (c *NoAdminFeatures) Prohibits(a macaroon.Access) error {
+	f, isFlyioAccess := a.(*Access)
+	if !isFlyioAccess {
+		return macaroon.ErrInvalidAccess
+	}
+	if f.Feature == nil {
+		return nil
+	}
+	if *f.Feature == "" {
+		return fmt.Errorf("%w admin org features", resset.ErrUnauthorizedForResource)
+	}
+
+	memberPermission, ok := MemberFeatures[*f.Feature]
+	if !ok {
+		return fmt.Errorf("%w %s", resset.ErrUnauthorizedForResource, *f.Feature)
+	}
+	if !f.Action.IsSubsetOf(memberPermission) {
+		return fmt.Errorf(
+			"%w %s access to %s",
+			resset.ErrUnauthorizedForAction,
+			f.Action.Remove(memberPermission),
+			*f.Feature,
+		)
+	}
+
+	return nil
 }
