@@ -12,6 +12,7 @@ import (
 
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/auth"
+	"github.com/superfly/macaroon/flyio"
 	"github.com/superfly/macaroon/resset"
 	msgpack "github.com/vmihailenco/msgpack/v5"
 	"golang.org/x/exp/maps"
@@ -114,6 +115,7 @@ var caveats = macaroon.NewCaveatSet(
 	auth.RequireOrganization(123),
 	auth.RequireGoogleHD("123"),
 	auth.RequireGitHubOrg(123),
+	&flyio.NoAdminFeatures{},
 )
 
 const (
