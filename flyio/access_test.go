@@ -79,11 +79,3 @@ func assertError(tb testing.TB, expected, actual error) {
 		assert.True(tb, errors.Is(actual, expected), "expected %v, got %v", expected, actual)
 	}
 }
-
-func ptr[T any](v T) *T {
-	return &v
-}
-
-func uptr(v uint64) *uint64 {
-	return ptr(v)
-}
