@@ -2,7 +2,6 @@ package flyio
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/superfly/macaroon"
@@ -58,18 +57,9 @@ func (f *Access) Validate() error {
 		return fmt.Errorf("%w deprecated app id if specifying app id", resset.ErrResourceUnspecified)
 	}
 
-	var orgLevelResources []string
-	if f.DeprecatedAppID != nil {
-		orgLevelResources = append(orgLevelResources, "app")
-	}
-	if f.Feature != nil {
-		orgLevelResources = append(orgLevelResources, "org-feature")
-	}
-	if f.Cluster != nil {
-		orgLevelResources = append(orgLevelResources, "litefs cluster")
-	}
-	if len(orgLevelResources) > 1 {
-		return fmt.Errorf("%w: %s", resset.ErrResourcesMutuallyExclusive, strings.Join(orgLevelResources, ", "))
+	// org-level resources = apps, features
+	if f.DeprecatedAppID != nil && f.Feature != nil {
+		return fmt.Errorf("%w: app, org-feature", resset.ErrResourcesMutuallyExclusive)
 	}
 
 	// app-level resources = machines, volumes
@@ -80,6 +70,17 @@ func (f *Access) Validate() error {
 
 		if f.Machine != nil && f.Volume != nil {
 			return fmt.Errorf("%w: volume, machine", resset.ErrResourcesMutuallyExclusive)
+		}
+	}
+
+	// lfsc feature-level resource = clusters
+	if f.Cluster != nil {
+		if f.Feature == nil {
+			return fmt.Errorf("%w %s feature if clusters are specified", resset.ErrResourceUnspecified, FeatureLFSC)
+		}
+
+		if *f.Feature != FeatureLFSC {
+			return fmt.Errorf("%w: clusters require the %s feature", macaroon.ErrInvalidAccess, FeatureLFSC)
 		}
 	}
 

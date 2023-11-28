@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
+	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/resset"
 )
 
@@ -25,22 +26,6 @@ func TestAccess(t *testing.T) {
 		DeprecatedOrgID: uptr(1),
 		DeprecatedAppID: uptr(1),
 		Feature:         ptr("x"),
-		Cluster:         ptr("x"),
-	}).Validate())
-	assertError(t, resset.ErrResourcesMutuallyExclusive, (&Access{
-		DeprecatedOrgID: uptr(1),
-		Feature:         ptr("x"),
-		Cluster:         ptr("x"),
-	}).Validate())
-	assertError(t, resset.ErrResourcesMutuallyExclusive, (&Access{
-		DeprecatedOrgID: uptr(1),
-		DeprecatedAppID: uptr(1),
-		Cluster:         ptr("x"),
-	}).Validate())
-	assertError(t, resset.ErrResourcesMutuallyExclusive, (&Access{
-		DeprecatedOrgID: uptr(1),
-		DeprecatedAppID: uptr(1),
-		Feature:         ptr("x"),
 	}).Validate())
 	assertError(t, noError, (&Access{
 		DeprecatedOrgID: uptr(1),
@@ -54,9 +39,21 @@ func TestAccess(t *testing.T) {
 		DeprecatedOrgID: uptr(1),
 		Feature:         ptr("x"),
 	}).Validate())
-	assertError(t, noError, (&Access{
+
+	// can't specify clusters without litefs-cloud feature
+	assertError(t, resset.ErrResourceUnspecified, (&Access{
 		DeprecatedOrgID: uptr(1),
-		Cluster:         ptr("x"),
+		Cluster:         ptr("foo"),
+	}).Validate())
+	assertError(t, macaroon.ErrInvalidAccess, (&Access{
+		DeprecatedOrgID: uptr(1),
+		Feature:         ptr("x"),
+		Cluster:         ptr("foo"),
+	}).Validate())
+	assert.NoError(t, (&Access{
+		DeprecatedOrgID: uptr(1),
+		Feature:         ptr(FeatureLFSC),
+		Cluster:         ptr("foo"),
 	}).Validate())
 
 	// can't specify encoded app id without numeric

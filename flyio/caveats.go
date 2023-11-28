@@ -217,7 +217,8 @@ func (c *IsUser) Prohibits(a macaroon.Access) error {
 	return nil
 }
 
-// Clusters is a set of Cluster caveats, with their RWX access levels.
+// Clusters is a set of Cluster caveats, with their RWX access levels. Clusters
+// belong to the "litefs-cloud" org-feature.
 type Clusters struct {
 	Clusters resset.ResourceSet[string] `json:"clusters"`
 }
@@ -235,21 +236,35 @@ func (c *Clusters) Prohibits(a macaroon.Access) error {
 	return c.Clusters.Prohibits(f.Cluster, f.Action)
 }
 
+const (
+	FeatureWireGuard       = "wg"
+	FeatureDomains         = "domain"
+	FeatureSites           = "site"
+	FeatureRemoteBuilders  = "builder"
+	FeatureAddOns          = "addon"
+	FeatureChecks          = "checks"
+	FeatureLFSC            = "litefs-cloud"
+	FeatureMembership      = "membership"
+	FeatureBilling         = "billing"
+	FeatureDeletion        = "deletion"
+	FeatureDocumentSigning = "document_signing"
+)
+
 var (
 	MemberFeatures = map[string]resset.Action{
-		"wg":           resset.ActionAll,
-		"domain":       resset.ActionAll,
-		"site":         resset.ActionAll,
-		"builder":      resset.ActionAll,
-		"addon":        resset.ActionAll,
-		"checks":       resset.ActionAll,
-		"litefs-cloud": resset.ActionAll,
+		FeatureWireGuard:      resset.ActionAll,
+		FeatureDomains:        resset.ActionAll,
+		FeatureSites:          resset.ActionAll,
+		FeatureRemoteBuilders: resset.ActionAll,
+		FeatureAddOns:         resset.ActionAll,
+		FeatureChecks:         resset.ActionAll,
+		FeatureLFSC:           resset.ActionAll,
 
-		"membership": resset.ActionRead,
-		"billing":    resset.ActionRead,
+		FeatureMembership: resset.ActionRead,
+		FeatureBilling:    resset.ActionRead,
 
-		"deletion":         resset.ActionNone,
-		"document_signing": resset.ActionNone,
+		FeatureDeletion:        resset.ActionNone,
+		FeatureDocumentSigning: resset.ActionNone,
 	}
 )
 
