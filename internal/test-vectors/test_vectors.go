@@ -8,7 +8,8 @@ import (
 	"encoding/json"
 	"math"
 	"os"
-	"slices"
+
+	"golang.org/x/exp/slices"
 
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/auth"

@@ -2,7 +2,8 @@ package flyio
 
 import (
 	"fmt"
-	"slices"
+
+	"golang.org/x/exp/slices"
 
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/resset"
