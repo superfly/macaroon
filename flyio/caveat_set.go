@@ -1,11 +1,13 @@
 package flyio
 
 import (
+	"errors"
 	"fmt"
 
 	"golang.org/x/exp/slices"
 
 	"github.com/superfly/macaroon"
+	"github.com/superfly/macaroon/auth"
 	"github.com/superfly/macaroon/resset"
 	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/maps"
@@ -168,6 +170,37 @@ func AppsAllowing(cs *macaroon.CaveatSet, action resset.Action) (uint64, []uint6
 	slices.Sort(ret)
 
 	return orgScope, ret, nil
+}
+
+// DangerousUserID iterates over the caveats to determine the associated user
+// ID. This identity should only be used for logging and auditing. It should
+// not be used for making authorization decisions.
+func DangerousUserID(cs *macaroon.CaveatSet) (uint64, error) {
+	var uid *uint64
+
+	for _, cav := range macaroon.GetCaveats[*IsUser](cs) {
+		switch {
+		case uid == nil:
+			uid = &cav.ID
+		case *uid != cav.ID:
+			return 0, errors.New("multiple user IDs specified")
+		}
+	}
+
+	for _, cav := range macaroon.GetCaveats[*auth.FlyioUserID](cs) {
+		switch cavID := *(*uint64)(cav); {
+		case uid == nil:
+			uid = &cavID
+		case *uid != cavID:
+			return 0, errors.New("multiple user IDs specified")
+		}
+	}
+
+	if uid == nil {
+		return 0, errors.New("user ID unspecified")
+	}
+
+	return *uid, nil
 }
 
 func ptr[T any](v T) *T {

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"math"
+	"math/big"
 	"os"
 
 	"golang.org/x/exp/slices"
@@ -116,6 +117,13 @@ var caveats = macaroon.NewCaveatSet(
 	auth.RequireOrganization(123),
 	auth.RequireGoogleHD("123"),
 	auth.RequireGitHubOrg(123),
+	ptr(auth.FlyioUserID(123)),
+	ptr(auth.GitHubUserID(123)),
+	(*auth.GoogleUserID)(new(big.Int).SetBytes([]byte{
+		0xDE, 0xAD, 0xBE, 0xEF,
+		0xDE, 0xAD, 0xBE, 0xEF,
+		123,
+	})),
 	&flyio.NoAdminFeatures{},
 )
 
@@ -167,7 +175,6 @@ func init()                                            { macaroon.RegisterCaveat
 func (c *mapCaveat) CaveatType() macaroon.CaveatType   { return cavMap }
 func (c *mapCaveat) Name() string                      { return "Map" }
 func (c *mapCaveat) Prohibits(f macaroon.Access) error { return nil }
-func (c *mapCaveat) IsAttestation() bool               { return false }
 
 var _ msgpack.CustomEncoder = mapCaveat{}
 

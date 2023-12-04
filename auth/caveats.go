@@ -1,21 +1,27 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"time"
 
 	"golang.org/x/exp/slices"
 
 	"github.com/superfly/macaroon"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 const (
-	CavConfineUser         = macaroon.CavAuthConfineUser
-	CavConfineOrganization = macaroon.CavAuthConfineOrganization
-	CavConfineGoogleHD     = macaroon.CavAuthConfineGoogleHD
-	CavConfineGitHubOrg    = macaroon.CavAuthConfineGitHubOrg
-	CavMaxValidity         = macaroon.CavAuthMaxValidity
+	CavConfineUser          = macaroon.CavAuthConfineUser
+	CavConfineOrganization  = macaroon.CavAuthConfineOrganization
+	CavConfineGoogleHD      = macaroon.CavAuthConfineGoogleHD
+	CavConfineGitHubOrg     = macaroon.CavAuthConfineGitHubOrg
+	CavMaxValidity          = macaroon.CavAuthMaxValidity
+	AttestationFlyioUserID  = macaroon.AttestationAuthFlyioUserID
+	AttestationGitHubUserID = macaroon.AttestationAuthGitHubUserID
+	AttestationGoogleUserID = macaroon.AttestationAuthGoogleUserID
 )
 
 // ConfineOrganization is a requirement placed on 3P caveats, requiring that the
@@ -189,4 +195,53 @@ func GetMaxValidity(cs *macaroon.CaveatSet) (time.Duration, bool) {
 	}
 
 	return max, max != time.Duration(math.MaxInt64)
+}
+
+type FlyioUserID uint64
+
+func init()                                              { macaroon.RegisterCaveatType(new(FlyioUserID)) }
+func (c *FlyioUserID) CaveatType() macaroon.CaveatType   { return AttestationFlyioUserID }
+func (c *FlyioUserID) Name() string                      { return "FlyioUserID" }
+func (c *FlyioUserID) Prohibits(a macaroon.Access) error { return macaroon.ErrBadCaveat }
+func (c *FlyioUserID) IsAttestation() bool               { return true }
+
+type GitHubUserID uint64
+
+func init()                                               { macaroon.RegisterCaveatType(new(GitHubUserID)) }
+func (c *GitHubUserID) CaveatType() macaroon.CaveatType   { return AttestationGitHubUserID }
+func (c *GitHubUserID) Name() string                      { return "GitHubUserID" }
+func (c *GitHubUserID) Prohibits(a macaroon.Access) error { return macaroon.ErrBadCaveat }
+func (c *GitHubUserID) IsAttestation() bool               { return true }
+
+type GoogleUserID big.Int
+
+func init()                                               { macaroon.RegisterCaveatType(new(GoogleUserID)) }
+func (c *GoogleUserID) CaveatType() macaroon.CaveatType   { return AttestationGoogleUserID }
+func (c *GoogleUserID) Name() string                      { return "GoogleUserID" }
+func (c *GoogleUserID) Prohibits(a macaroon.Access) error { return macaroon.ErrBadCaveat }
+func (c *GoogleUserID) IsAttestation() bool               { return true }
+
+func (c *GoogleUserID) EncodeMsgpack(enc *msgpack.Encoder) error {
+	return enc.Encode((*big.Int)(c).Bytes())
+}
+
+func (c *GoogleUserID) DecodeMsgpack(dec *msgpack.Decoder) error {
+	b, err := dec.DecodeBytes()
+	if err != nil {
+		return err
+	}
+
+	(*big.Int)(c).SetBytes(b)
+	return nil
+}
+
+func (c *GoogleUserID) MarshalJSON() ([]byte, error) {
+	return []byte((*big.Int)(c).String()), nil
+}
+
+func (c *GoogleUserID) UnmarshalJSON(data []byte) error {
+	if _, ok := (*big.Int)(c).SetString(string(data), 10); !ok {
+		return errors.New("bad bigint")
+	}
+	return nil
 }

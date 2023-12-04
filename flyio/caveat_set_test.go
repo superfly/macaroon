@@ -6,6 +6,7 @@ import (
 
 	"github.com/alecthomas/assert/v2"
 	"github.com/superfly/macaroon"
+	"github.com/superfly/macaroon/auth"
 	"github.com/superfly/macaroon/resset"
 )
 
@@ -272,4 +273,45 @@ func TestAppsAllowing(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 987, orgID)
 	assert.Equal(t, []uint64{123, 234}, appIDs)
+}
+
+func TestDangerousUserID(t *testing.T) {
+	_, err := DangerousUserID(macaroon.NewCaveatSet())
+	assert.Error(t, err)
+
+	id, err := DangerousUserID(macaroon.NewCaveatSet(&IsUser{ID: 123}))
+	assert.NoError(t, err)
+	assert.Equal(t, 123, id)
+
+	id, err = DangerousUserID(macaroon.NewCaveatSet(&IsUser{ID: 123}, &IsUser{ID: 123}))
+	assert.NoError(t, err)
+	assert.Equal(t, 123, id)
+
+	id, err = DangerousUserID(macaroon.NewCaveatSet(ptr(auth.FlyioUserID(123))))
+	assert.NoError(t, err)
+	assert.Equal(t, 123, id)
+
+	id, err = DangerousUserID(macaroon.NewCaveatSet(ptr(auth.FlyioUserID(123)), ptr(auth.FlyioUserID(123))))
+	assert.NoError(t, err)
+	assert.Equal(t, 123, id)
+
+	id, err = DangerousUserID(macaroon.NewCaveatSet(&IsUser{ID: 123}, ptr(auth.FlyioUserID(123))))
+	assert.NoError(t, err)
+	assert.Equal(t, 123, id)
+
+	id, err = DangerousUserID(macaroon.NewCaveatSet(ptr(auth.FlyioUserID(123)), &IsUser{ID: 123}))
+	assert.NoError(t, err)
+	assert.Equal(t, 123, id)
+
+	_, err = DangerousUserID(macaroon.NewCaveatSet(&IsUser{ID: 123}, &IsUser{ID: 234}))
+	assert.Error(t, err)
+
+	_, err = DangerousUserID(macaroon.NewCaveatSet(ptr(auth.FlyioUserID(123)), ptr(auth.FlyioUserID(234))))
+	assert.Error(t, err)
+
+	_, err = DangerousUserID(macaroon.NewCaveatSet(&IsUser{ID: 123}, ptr(auth.FlyioUserID(234))))
+	assert.Error(t, err)
+
+	_, err = DangerousUserID(macaroon.NewCaveatSet(ptr(auth.FlyioUserID(234)), &IsUser{ID: 123}))
+	assert.Error(t, err)
 }

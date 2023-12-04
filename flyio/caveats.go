@@ -203,7 +203,7 @@ func (c *Mutations) Prohibits(a macaroon.Access) error {
 	return nil
 }
 
-// TODO: deprecate this and replace with an attestation
+// deprecated in favor of auth.FlyioUserID
 type IsUser struct {
 	ID uint64 `json:"uint64"`
 }

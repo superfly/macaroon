@@ -69,7 +69,7 @@ func (c *BindToParentToken) CaveatType() CaveatType { return CavBindToParentToke
 func (c *BindToParentToken) Name() string           { return "BindToParentToken" }
 
 func (c *BindToParentToken) Prohibits(f Access) error {
-	// IsUser are part of token verification and  have no role in
+	// BindToParentToken are part of token verification and  have no role in
 	// access validation.
 	return fmt.Errorf("%w (bind-to-parent)", ErrBadCaveat)
 }
