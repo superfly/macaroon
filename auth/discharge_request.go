@@ -1,6 +1,8 @@
 package auth
 
-import "time"
+import (
+	"time"
+)
 
 // implements macaroon.Access
 type DischargeRequest struct {
@@ -23,9 +25,13 @@ type OrganizationAuth struct {
 }
 
 type GoogleAuth struct {
-	HD string
+	HD     string
+	UserID *GoogleUserID // reuse attestation type for serialization
+	Email  string
 }
 
 type GitHubAuth struct {
 	OrgIDs []uint64
+	UserID uint64
+	Login  string
 }
