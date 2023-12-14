@@ -248,6 +248,7 @@ const (
 	FeatureBilling         = "billing"
 	FeatureDeletion        = "deletion"
 	FeatureDocumentSigning = "document_signing"
+	FeatureAuthentication  = "authentication"
 )
 
 var (
@@ -260,8 +261,9 @@ var (
 		FeatureChecks:         resset.ActionAll,
 		FeatureLFSC:           resset.ActionAll,
 
-		FeatureMembership: resset.ActionRead,
-		FeatureBilling:    resset.ActionRead,
+		FeatureMembership:     resset.ActionRead,
+		FeatureBilling:        resset.ActionRead,
+		FeatureAuthentication: resset.ActionRead,
 
 		FeatureDeletion:        resset.ActionNone,
 		FeatureDocumentSigning: resset.ActionNone,
