@@ -125,6 +125,7 @@ var caveats = macaroon.NewCaveatSet(
 		123,
 	})),
 	&flyio.NoAdminFeatures{},
+	&flyio.Organization{ID: 123, Mask: resset.ActionAll},
 )
 
 const (
