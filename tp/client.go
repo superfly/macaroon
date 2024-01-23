@@ -154,21 +154,33 @@ func (c *Client) FetchDischargeTokens(ctx context.Context, tokenHeader string) (
 
 	for tpLoc, locTickets := range tickets {
 		for _, ticket := range locTickets {
-			wg.Add(1)
-			go func(tpLoc string, ticket []byte) {
-				defer wg.Done()
-
-				dis, err := c.fetchDischargeToken(ctx, tpLoc, ticket)
-
-				m.Lock()
-				defer m.Unlock()
-
-				if err != nil {
+			// Do discharges sequentially if we've been given a cookie jar.
+			// Allowing one discharge to finish before proceeding to the next
+			// increases our chances that a session will save us from user
+			// interaction.
+			if c.http.Jar != nil {
+				if dis, err := c.fetchDischargeToken(ctx, tpLoc, ticket); err != nil {
 					combinedErr = merr.Append(combinedErr, err)
 				} else {
 					tokenHeader = tokenHeader + "," + dis
 				}
-			}(tpLoc, ticket)
+			} else {
+				wg.Add(1)
+				go func(tpLoc string, ticket []byte) {
+					defer wg.Done()
+
+					dis, err := c.fetchDischargeToken(ctx, tpLoc, ticket)
+
+					m.Lock()
+					defer m.Unlock()
+
+					if err != nil {
+						combinedErr = merr.Append(combinedErr, err)
+					} else {
+						tokenHeader = tokenHeader + "," + dis
+					}
+				}(tpLoc, ticket)
+			}
 		}
 	}
 

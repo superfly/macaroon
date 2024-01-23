@@ -44,10 +44,10 @@ func (c *ConfineOrganization) Prohibits(a macaroon.Access) error {
 	switch dr, isDR := a.(*DischargeRequest); {
 	case !isDR:
 		return macaroon.ErrInvalidAccess
-	case dr.Organization == nil:
+	case len(dr.Flyio) == 0:
 		return c
-	case !slices.Contains(dr.Organization.IDs, c.ID):
-		return fmt.Errorf("%w (got %v)", c, dr.Organization.IDs)
+	case !slices.Contains(dr.FlyioOrganizationIDs(), c.ID):
+		return fmt.Errorf("%w (got %v)", c, dr.FlyioOrganizationIDs())
 	default:
 		return nil
 	}
@@ -77,10 +77,10 @@ func (c *ConfineUser) Prohibits(a macaroon.Access) error {
 	switch dr, isDR := a.(*DischargeRequest); {
 	case !isDR:
 		return macaroon.ErrInvalidAccess
-	case dr.User == nil:
+	case len(dr.Flyio) == 0:
 		return c
-	case dr.User.ID != c.ID:
-		return fmt.Errorf("%w (got %d)", c, dr.User.ID)
+	case !slices.Contains(dr.FlyioUserIDs(), c.ID):
+		return fmt.Errorf("%w (got %v)", c, dr.FlyioUserIDs())
 	default:
 		return nil
 	}
@@ -109,10 +109,10 @@ func (c *ConfineGoogleHD) Prohibits(a macaroon.Access) error {
 	switch dr, isDR := a.(*DischargeRequest); {
 	case !isDR:
 		return macaroon.ErrInvalidAccess
-	case dr.Google == nil:
+	case len(dr.Google) == 0:
 		return c
-	case dr.Google.HD != string(*c):
-		return fmt.Errorf("%w (got %s)", c, dr.Google.HD)
+	case !slices.Contains(dr.GoogleHDs(), (string)(*c)):
+		return fmt.Errorf("%w (got %v)", c, dr.GoogleHDs())
 	default:
 		return nil
 	}
@@ -141,10 +141,10 @@ func (c *ConfineGitHubOrg) Prohibits(a macaroon.Access) error {
 	switch dr, isDR := a.(*DischargeRequest); {
 	case !isDR:
 		return macaroon.ErrInvalidAccess
-	case dr.GitHub == nil:
+	case len(dr.GitHub) == 0:
 		return c
-	case !slices.Contains(dr.GitHub.OrgIDs, uint64(*c)):
-		return fmt.Errorf("%w (got %v)", c, dr.GitHub.OrgIDs)
+	case !slices.Contains(dr.GitHubOrgIDs(), uint64(*c)):
+		return fmt.Errorf("%w (got %v)", c, dr.GitHubOrgIDs())
 	default:
 		return nil
 	}

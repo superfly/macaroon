@@ -35,6 +35,16 @@ func main() {
 
 	for _, c := range caveats.Caveats {
 		m, _ := macaroon.New(v.KID, v.Location, v.Key)
+
+		// put attestations in discharge tokens
+		if macaroon.IsAttestation(c) {
+			k := macaroon.NewEncryptionKey()
+			m.Add3P(k, v.Location)
+			ticket, _ := m.ThirdPartyTicket(v.Location)
+			_, dm, _ := macaroon.DischargeTicket(k, v.Location, ticket)
+			m = dm
+		}
+
 		m.Add(c)
 		tok, _ := m.Encode()
 		v.Macaroons[c.Name()] = macaroon.ToAuthorizationHeader(tok)
