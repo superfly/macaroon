@@ -136,6 +136,10 @@ func RegisterCaveatJSONAlias(typ CaveatType, alias string) {
 	s2t[alias] = typ
 }
 
+func unegisterCaveatJSONAlias(alias string) {
+	delete(s2t, alias)
+}
+
 func typeToCaveat(t CaveatType) Caveat {
 	cav, ok := t2c[t]
 	if !ok {

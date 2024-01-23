@@ -20,6 +20,7 @@ func TestCaveatRegistry(t *testing.T) {
 	assert.Equal(t, c, cs.Caveats[0])
 
 	RegisterCaveatJSONAlias(cavTestParentResource, "Foobar")
+	t.Cleanup(func() { unegisterCaveatJSONAlias("Foobar") })
 
 	assert.NoError(t, json.Unmarshal(j1, cs))
 	assert.Equal(t, 1, len(cs.Caveats))
