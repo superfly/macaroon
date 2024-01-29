@@ -128,14 +128,18 @@ func encode(v interface{}) ([]byte, error) {
 	enc := msgpack.GetEncoder()
 	defer msgpack.PutEncoder(enc)
 
-	enc.Reset(buf)
-	enc.UseArrayEncodedStructs(true)
-	enc.UseCompactInts(true)
+	configEncoder(enc, buf)
 
 	if err := enc.Encode(v); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+func configEncoder(enc *msgpack.Encoder, buf *bytes.Buffer) {
+	enc.Reset(buf)
+	enc.UseArrayEncodedStructs(true)
+	enc.UseCompactInts(true)
 }
 
 // New creates a new token given a key-id string (which can
@@ -209,8 +213,8 @@ func (m *Macaroon) Add(caveats ...Caveat) error {
 		return errors.New("can't add caveats to finalized proof")
 	}
 
-	var err error
-	if caveats, err = m.dedup(caveats); err != nil {
+	caveats, err := m.dedup(caveats)
+	if err != nil {
 		return fmt.Errorf("deduplicating caveats: %w", err)
 	}
 
@@ -234,15 +238,13 @@ func (m *Macaroon) Add(caveats ...Caveat) error {
 			seen3P[c3p.Location] = true
 		}
 
-		m.UnsafeCaveats.Caveats = append(m.UnsafeCaveats.Caveats, caveat)
-
-		opc, err := NewCaveatSet(caveat).MarshalMsgpack()
+		packed, err := packCaveat(caveat)
 		if err != nil {
 			return fmt.Errorf("mint: encode caveat: %w", err)
 		}
 
-		m.Tail = sign(SigningKey(m.Tail), opc)
-
+		m.UnsafeCaveats.addWithPacked(caveat, packed)
+		m.Tail = sign(SigningKey(m.Tail), packed)
 	}
 
 	return nil
@@ -253,28 +255,26 @@ func (m *Macaroon) Add(caveats ...Caveat) error {
 //
 // TODO: ignore caveats that are subsets of existing caveats
 func (m *Macaroon) dedup(caveats []Caveat) ([]Caveat, error) {
-	seen := make(map[string]bool, len(m.UnsafeCaveats.Caveats))
+	mPacked, err := m.UnsafeCaveats.PackedCaveats()
+	if err != nil {
+		return nil, err
+	}
 
-	for _, cav := range m.UnsafeCaveats.Caveats {
-		packed, err := NewCaveatSet(cav).MarshalMsgpack()
-		if err != nil {
-			return nil, err
-		}
-
-		seen[hex.EncodeToString(packed)] = true
+	seen := make(map[string]bool, len(mPacked))
+	for _, packed := range mPacked {
+		seen[string(packed)] = true
 	}
 
 	ret := make([]Caveat, 0, len(caveats))
 	for _, cav := range caveats {
-		packed, err := NewCaveatSet(cav).MarshalMsgpack()
+		packed, err := packCaveat(cav)
 		if err != nil {
 			return nil, err
 		}
 
-		str := hex.EncodeToString(packed)
-		if !seen[str] {
+		if s := string(packed); !seen[s] {
+			seen[s] = true
 			ret = append(ret, cav)
-			seen[str] = true
 		}
 	}
 
@@ -341,8 +341,16 @@ func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingI
 	dischargesToVerify := make([]*verifyParams, 0, len(dischargeByTicket))
 	thisTokenBindingIds := [][]byte{digest(curMac)}
 
-	for _, c := range m.UnsafeCaveats.Caveats {
-		switch cav := c.(type) {
+	caveats := m.UnsafeCaveats.Caveats()
+	caveatsPacked, err := m.UnsafeCaveats.PackedCaveats()
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range caveats {
+		packed := caveatsPacked[i]
+
+		switch cav := caveats[i].(type) {
 		case *Caveat3P:
 			discharge, ok := dischargeByTicket[string(cav.Ticket)]
 			if !ok {
@@ -373,16 +381,11 @@ func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingI
 			}
 
 			if !IsAttestation(cav) || trustAttestations {
-				ret.Caveats = append(ret.Caveats, c)
+				ret.addWithPacked(cav, packed)
 			}
 		}
 
-		opc, err := NewCaveatSet(c).MarshalMsgpack()
-		if err != nil {
-			return nil, err
-		}
-
-		curMac = sign(SigningKey(curMac), opc)
+		curMac = sign(SigningKey(curMac), packed)
 		thisTokenBindingIds = append(thisTokenBindingIds, digest(curMac))
 	}
 
@@ -409,7 +412,7 @@ func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingI
 			trustedDischarge = true
 		}
 
-		dcavs, err := d.m.verify(
+		dcs, err := d.m.verify(
 			d.k,
 			nil, /* don't let them nest yet */
 			thisTokenBindingIds,
@@ -420,7 +423,15 @@ func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingI
 			return nil, fmt.Errorf("macaroon verify: verify discharge: %w", err)
 		}
 
-		ret.Caveats = append(ret.Caveats, dcavs.Caveats...)
+		dCavs := dcs.Caveats()
+		dCavsPacked, err := dcs.PackedCaveats()
+		if err != nil {
+			return nil, err
+		}
+
+		for i := range dCavs {
+			ret.addWithPacked(dCavs[i], dCavsPacked[i])
+		}
 	}
 
 	if m.Nonce.Proof {
