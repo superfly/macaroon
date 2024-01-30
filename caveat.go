@@ -39,6 +39,9 @@ const (
 	AttestationAuthFlyioUserID
 	AttestationAuthGitHubUserID
 	AttestationAuthGoogleUserID
+	_ // fly.io reserved
+	_ // fly.io reserved
+	_ // fly.io reserved
 
 	// Globally-recognized user-registerable caveat types may be requested via
 	// pull requests to this repository. Add a meaningful name of the caveat
