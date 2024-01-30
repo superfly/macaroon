@@ -80,3 +80,111 @@ func (f *Access) Validate() error {
 
 	return nil
 }
+
+// OrgIDGetter is an interface allowing other packages to implement Accesses
+// that work with Caveats defined in this package.
+type OrgIDGetter interface {
+	resset.Access
+	GetOrgID() *uint64
+}
+
+var _ OrgIDGetter = (*Access)(nil)
+
+// GetOrgID implements OrgIDGetter.
+func (a *Access) GetOrgID() *uint64 { return a.OrgID }
+
+// AppIDGetter is an interface allowing other packages to implement Accesses
+// that work with Caveats defined in this package.
+type AppIDGetter interface {
+	resset.Access
+	GetAppID() *uint64
+}
+
+var _ AppIDGetter = (*Access)(nil)
+
+// GetAppID implements AppIDGetter.
+func (a *Access) GetAppID() *uint64 { return a.AppID }
+
+// FeatureGetter is an interface allowing other packages to implement Accesses
+// that work with Caveats defined in this package.
+type FeatureGetter interface {
+	resset.Access
+	GetFeature() *string
+}
+
+var _ FeatureGetter = (*Access)(nil)
+
+// GetFeature implements FeatureGetter.
+func (a *Access) GetFeature() *string { return a.Feature }
+
+// VolumeGetter is an interface allowing other packages to implement Accesses
+// that work with Caveats defined in this package.
+type VolumeGetter interface {
+	resset.Access
+	GetVolume() *string
+}
+
+var _ VolumeGetter = (*Access)(nil)
+
+// GetVolume implements VolumeGetter.
+func (a *Access) GetVolume() *string { return a.Volume }
+
+// MachineGetter is an interface allowing other packages to implement Accesses
+// that work with Caveats defined in this package.
+type MachineGetter interface {
+	resset.Access
+	GetMachine() *string
+}
+
+var _ MachineGetter = (*Access)(nil)
+
+// GetMachine implements MachineGetter.
+func (a *Access) GetMachine() *string { return a.Machine }
+
+// MachineFeatureGetter is an interface allowing other packages to implement
+// Accesses that work with Caveats defined in this package.
+type MachineFeatureGetter interface {
+	resset.Access
+	GetMachineFeature() *string
+}
+
+var _ MachineFeatureGetter = (*Access)(nil)
+
+// GetMachineFeature implements MachineFeatureGetter.
+func (a *Access) GetMachineFeature() *string { return a.MachineFeature }
+
+// MutationGetter is an interface allowing other packages to implement Accesses
+// that work with Caveats defined in this package.
+type MutationGetter interface {
+	macaroon.Access
+	GetMutation() *string
+}
+
+var _ MutationGetter = (*Access)(nil)
+
+// GetMutation implements MutationGetter.
+func (a *Access) GetMutation() *string { return a.Mutation }
+
+// SourceMachineGetter is an interface allowing other packages to implement
+// Accesses that work with Caveats defined in this package.
+type SourceMachineGetter interface {
+	macaroon.Access
+	GetSourceMachine() *string
+}
+
+var _ SourceMachineGetter = (*Access)(nil)
+
+// GetSourceMachine implements SourceMachineGetter.
+func (a *Access) GetSourceMachine() *string { return a.SourceMachine }
+
+// ClusterGetter is an interface allowing other packages to implement Accesses
+// that work with Caveats defined in this package.
+type ClusterGetter interface {
+	resset.Access
+	GetCluster() *string
+}
+
+var _ ClusterGetter = (*Access)(nil)
+
+// GetCluster implements ClusterGetter.
+func (a *Access) GetCluster() *string { return a.Cluster }

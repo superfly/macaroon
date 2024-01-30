@@ -30,15 +30,15 @@ func (c *FromMachine) CaveatType() macaroon.CaveatType { return CavFromMachineSo
 func (c *FromMachine) Name() string                    { return "FromMachineSource" }
 
 func (c *FromMachine) Prohibits(a macaroon.Access) error {
-	f, isFlyioAccess := a.(*Access)
+	f, isFlyioAccess := a.(SourceMachineGetter)
 
 	switch {
 	case !isFlyioAccess:
 		return macaroon.ErrInvalidAccess
-	case f.SourceMachine == nil:
+	case f.GetSourceMachine() == nil:
 		return fmt.Errorf("%w missing SourceMachine", macaroon.ErrInvalidAccess)
-	case c.ID != *f.SourceMachine:
-		return fmt.Errorf("%w: unauthorized source, expected from machine %s, but got %s", macaroon.ErrUnauthorized, c.ID, *f.SourceMachine)
+	case c.ID != *f.GetSourceMachine():
+		return fmt.Errorf("%w: unauthorized source, expected from machine %s, but got %s", macaroon.ErrUnauthorized, c.ID, *f.GetSourceMachine())
 	default:
 		return nil
 	}
@@ -59,17 +59,17 @@ func (c *Organization) CaveatType() macaroon.CaveatType { return CavOrganization
 func (c *Organization) Name() string                    { return "Organization" }
 
 func (c *Organization) Prohibits(a macaroon.Access) error {
-	f, isFlyioAccess := a.(*Access)
+	f, isFlyioAccess := a.(OrgIDGetter)
 
 	switch {
 	case !isFlyioAccess:
 		return macaroon.ErrInvalidAccess
-	case f.OrgID == nil:
+	case f.GetOrgID() == nil:
 		return fmt.Errorf("%w org", resset.ErrResourceUnspecified)
-	case c.ID != *f.OrgID:
-		return fmt.Errorf("%w org %d, only %d", resset.ErrUnauthorizedForResource, f.OrgID, c.ID)
-	case !f.Action.IsSubsetOf(c.Mask):
-		return fmt.Errorf("%w access %s (%s not allowed)", resset.ErrUnauthorizedForAction, f.Action, f.Action.Remove(c.Mask))
+	case c.ID != *f.GetOrgID():
+		return fmt.Errorf("%w org %d, only %d", resset.ErrUnauthorizedForResource, *f.GetOrgID(), c.ID)
+	case !f.GetAction().IsSubsetOf(c.Mask):
+		return fmt.Errorf("%w access %s (%s not allowed)", resset.ErrUnauthorizedForAction, f.GetAction(), f.GetAction().Remove(c.Mask))
 	default:
 		return nil
 	}
@@ -91,11 +91,11 @@ func (c *Apps) CaveatType() macaroon.CaveatType { return CavApps }
 func (c *Apps) Name() string                    { return "Apps" }
 
 func (c *Apps) Prohibits(a macaroon.Access) error {
-	f, isFlyioAccess := a.(*Access)
+	f, isFlyioAccess := a.(AppIDGetter)
 	if !isFlyioAccess {
 		return macaroon.ErrInvalidAccess
 	}
-	return c.Apps.Prohibits(f.AppID, f.Action)
+	return c.Apps.Prohibits(f.GetAppID(), f.GetAction())
 }
 
 type Volumes struct {
@@ -107,11 +107,11 @@ func (c *Volumes) CaveatType() macaroon.CaveatType { return CavVolumes }
 func (c *Volumes) Name() string                    { return "Volumes" }
 
 func (c *Volumes) Prohibits(a macaroon.Access) error {
-	f, isFlyioAccess := a.(*Access)
+	f, isFlyioAccess := a.(VolumeGetter)
 	if !isFlyioAccess {
 		return macaroon.ErrInvalidAccess
 	}
-	return c.Volumes.Prohibits(f.Volume, f.Action)
+	return c.Volumes.Prohibits(f.GetVolume(), f.GetAction())
 }
 
 type Machines struct {
@@ -123,11 +123,11 @@ func (c *Machines) CaveatType() macaroon.CaveatType { return CavMachines }
 func (c *Machines) Name() string                    { return "Machines" }
 
 func (c *Machines) Prohibits(a macaroon.Access) error {
-	f, isFlyioAccess := a.(*Access)
+	f, isFlyioAccess := a.(MachineGetter)
 	if !isFlyioAccess {
 		return macaroon.ErrInvalidAccess
 	}
-	return c.Machines.Prohibits(f.Machine, f.Action)
+	return c.Machines.Prohibits(f.GetMachine(), f.GetAction())
 }
 
 type MachineFeatureSet struct {
@@ -139,11 +139,11 @@ func (c *MachineFeatureSet) CaveatType() macaroon.CaveatType { return CavMachine
 func (c *MachineFeatureSet) Name() string                    { return "MachineFeatureSet" }
 
 func (c *MachineFeatureSet) Prohibits(a macaroon.Access) error {
-	f, isFlyioAccess := a.(*Access)
+	f, isFlyioAccess := a.(MachineFeatureGetter)
 	if !isFlyioAccess {
 		return macaroon.ErrInvalidAccess
 	}
-	return c.Features.Prohibits(f.MachineFeature, f.Action)
+	return c.Features.Prohibits(f.GetMachineFeature(), f.GetAction())
 }
 
 // FeatureSet is a collection of organization-level "features" that are managed
@@ -160,11 +160,11 @@ func (c *FeatureSet) CaveatType() macaroon.CaveatType { return CavFeatureSet }
 func (c *FeatureSet) Name() string                    { return "FeatureSet" }
 
 func (c *FeatureSet) Prohibits(a macaroon.Access) error {
-	f, isFlyioAccess := a.(*Access)
+	f, isFlyioAccess := a.(FeatureGetter)
 	if !isFlyioAccess {
 		return macaroon.ErrInvalidAccess
 	}
-	return c.Features.Prohibits(f.Feature, f.Action)
+	return c.Features.Prohibits(f.GetFeature(), f.GetAction())
 }
 
 // Mutations is a set of GraphQL mutations allowed by this token.
@@ -177,12 +177,12 @@ func (c *Mutations) CaveatType() macaroon.CaveatType { return CavMutations }
 func (c *Mutations) Name() string                    { return "Mutations" }
 
 func (c *Mutations) Prohibits(a macaroon.Access) error {
-	f, isFlyioAccess := a.(*Access)
+	f, isFlyioAccess := a.(MutationGetter)
 	if !isFlyioAccess {
 		return macaroon.ErrInvalidAccess
 	}
 
-	if f.Mutation == nil {
+	if f.GetMutation() == nil {
 		// explicitly don't return resset.ErrResourceUnspecified. A mutation isn't a
 		// resource and can't be used with IfPresent caveats.
 		return fmt.Errorf("%w: only authorized for graphql mutations", macaroon.ErrUnauthorized)
@@ -190,14 +190,14 @@ func (c *Mutations) Prohibits(a macaroon.Access) error {
 
 	var found bool
 	for _, mutation := range c.Mutations {
-		if mutation != *f.Mutation {
+		if mutation != *f.GetMutation() {
 			continue
 		}
 		found = true
 	}
 
 	if !found {
-		return fmt.Errorf("%w mutation %s", resset.ErrUnauthorizedForResource, *f.Mutation)
+		return fmt.Errorf("%w mutation %s", resset.ErrUnauthorizedForResource, *f.GetMutation())
 	}
 
 	return nil
@@ -228,12 +228,12 @@ func (c *Clusters) CaveatType() macaroon.CaveatType { return CavClusters }
 func (c *Clusters) Name() string                    { return "Clusters" }
 
 func (c *Clusters) Prohibits(a macaroon.Access) error {
-	f, isFlyioAccess := a.(*Access)
+	f, isFlyioAccess := a.(ClusterGetter)
 	if !isFlyioAccess {
 		return macaroon.ErrInvalidAccess
 	}
 
-	return c.Clusters.Prohibits(f.Cluster, f.Action)
+	return c.Clusters.Prohibits(f.GetCluster(), f.GetAction())
 }
 
 const (
@@ -288,27 +288,27 @@ func (c *NoAdminFeatures) CaveatType() macaroon.CaveatType { return CavNoAdminFe
 func (c *NoAdminFeatures) Name() string                    { return "NoAdminFeatures" }
 
 func (c *NoAdminFeatures) Prohibits(a macaroon.Access) error {
-	f, isFlyioAccess := a.(*Access)
+	f, isFlyioAccess := a.(FeatureGetter)
 	if !isFlyioAccess {
 		return macaroon.ErrInvalidAccess
 	}
-	if f.Feature == nil {
+	if f.GetFeature() == nil {
 		return nil
 	}
-	if *f.Feature == "" {
+	if *f.GetFeature() == "" {
 		return fmt.Errorf("%w admin org features", resset.ErrUnauthorizedForResource)
 	}
 
-	memberPermission, ok := MemberFeatures[*f.Feature]
+	memberPermission, ok := MemberFeatures[*f.GetFeature()]
 	if !ok {
-		return fmt.Errorf("%w %s", resset.ErrUnauthorizedForResource, *f.Feature)
+		return fmt.Errorf("%w %s", resset.ErrUnauthorizedForResource, *f.GetFeature())
 	}
-	if !f.Action.IsSubsetOf(memberPermission) {
+	if !f.GetAction().IsSubsetOf(memberPermission) {
 		return fmt.Errorf(
 			"%w %s access to %s",
 			resset.ErrUnauthorizedForAction,
-			f.Action.Remove(memberPermission),
-			*f.Feature,
+			f.GetAction().Remove(memberPermission),
+			*f.GetFeature(),
 		)
 	}
 
