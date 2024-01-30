@@ -9,9 +9,9 @@ import (
 )
 
 type Access struct {
-	OrgSlug        *string       `json:"org_slug,omitempty"`
-	AppID          *string       `json:"apphid,omitempty"`
 	Action         resset.Action `json:"action,omitempty"`
+	OrgID          *uint64       `json:"orgid,omitempty"`
+	AppID          *uint64       `json:"appid,omitempty"`
 	Feature        *string       `json:"feature,omitempty"`
 	Volume         *string       `json:"volume,omitempty"`
 	Machine        *string       `json:"machine,omitempty"`
@@ -19,10 +19,6 @@ type Access struct {
 	Mutation       *string       `json:"mutation,omitempty"`
 	SourceMachine  *string       `json:"sourceMachine,omitempty"`
 	Cluster        *string       `json:"cluster,omitempty"`
-
-	// deprecated
-	DeprecatedOrgID *uint64 `json:"orgid,omitempty"`
-	DeprecatedAppID *uint64 `json:"appid,omitempty"`
 }
 
 var (
@@ -46,25 +42,18 @@ func (a *Access) Now() time.Time {
 //
 // This ensure that a Access represents a single action taken on a single object.
 func (f *Access) Validate() error {
-	// TODO: require both slug/id to be set once clients are updated.
-	// root-level resources = org
-	if f.DeprecatedOrgID == nil {
+	if f.OrgID == nil {
 		return fmt.Errorf("%w org", resset.ErrResourceUnspecified)
 	}
 
-	// TODO: require both id/hid to be set once clients are updated.
-	if f.AppID != nil && f.DeprecatedAppID == nil {
-		return fmt.Errorf("%w deprecated app id if specifying app id", resset.ErrResourceUnspecified)
-	}
-
 	// org-level resources = apps, features
-	if f.DeprecatedAppID != nil && f.Feature != nil {
+	if f.AppID != nil && f.Feature != nil {
 		return fmt.Errorf("%w: app, org-feature", resset.ErrResourcesMutuallyExclusive)
 	}
 
 	// app-level resources = machines, volumes
 	if f.Machine != nil || f.Volume != nil {
-		if f.DeprecatedAppID == nil {
+		if f.AppID == nil {
 			return fmt.Errorf("%w app if app-owned resource is specified", resset.ErrResourceUnspecified)
 		}
 
