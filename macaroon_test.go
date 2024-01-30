@@ -410,6 +410,44 @@ func TestMacaroons(t *testing.T) {
 		_, err = decoded.Verify(key, discharges, nil)
 		assert.Error(t, err)
 	})
+
+	t.Run("attestations", func(t *testing.T) {
+		defer reset(t)
+		const tpLoc = "other loc"
+		tpKey := NewEncryptionKey()
+		tpCavs = append(tpCavs, tpParams{
+			key:  tpKey,
+			loc:  tpLoc,
+			cavs: nil,
+		})
+		requireMint(t)
+
+		found, _, dm, err := dischargeMacaroon(tpKey, tpLoc, encoded)
+		assert.True(t, found)
+		assert.NoError(t, err)
+
+		assert.NoError(t, dm.Add(ptr(TestAttestation(123))))
+
+		discharges[0], err = dm.Encode()
+		assert.NoError(t, err)
+
+		requireDecode(t)
+
+		// no trusted key
+		verifiedCavs, err := decoded.Verify(key, discharges, map[string][]EncryptionKey{tpLoc: {}})
+		assert.NoError(t, err)
+		assert.Equal(t, []Caveat{}, verifiedCavs.Caveats)
+
+		// incorrect trusted key
+		verifiedCavs, err = decoded.Verify(key, discharges, map[string][]EncryptionKey{tpLoc: {NewEncryptionKey()}})
+		assert.NoError(t, err)
+		assert.Equal(t, []Caveat{}, verifiedCavs.Caveats)
+
+		// correct trusted key
+		verifiedCavs, err = decoded.Verify(key, discharges, map[string][]EncryptionKey{tpLoc: {tpKey}})
+		assert.NoError(t, err)
+		assert.Equal(t, []Caveat{ptr(TestAttestation(123))}, verifiedCavs.Caveats)
+	})
 }
 
 func Test3pe2e(t *testing.T) {
@@ -658,3 +696,11 @@ func dischargeMacaroon(ka EncryptionKey, location string, encodedMacaroon []byte
 	dcavs, dm, err := DischargeTicket(ka, location, ticket)
 	return true, dcavs, dm, err
 }
+
+type TestAttestation uint64
+
+func init()                                         { RegisterCaveatType(new(TestAttestation)) }
+func (c *TestAttestation) CaveatType() CaveatType   { return AttestationAuthFlyioUserID }
+func (c *TestAttestation) Name() string             { return "FlyioUserID" }
+func (c *TestAttestation) Prohibits(a Access) error { return ErrBadCaveat }
+func (c *TestAttestation) IsAttestation() bool      { return true }

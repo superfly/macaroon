@@ -306,17 +306,17 @@ func (m *Macaroon) Encode() ([]byte, error) {
 // a token that says "yes, this person is logged in as bob@victim.com, but
 // only allow this request to perform reads, not writes"). Those added
 // ordinary caveats WILL be returned from Verify.
-func (m *Macaroon) Verify(k SigningKey, discharges [][]byte, trusted3Ps map[string]EncryptionKey) (*CaveatSet, error) {
+func (m *Macaroon) Verify(k SigningKey, discharges [][]byte, trusted3Ps map[string][]EncryptionKey) (*CaveatSet, error) {
 	return m.verify(k, discharges, nil, true, trusted3Ps)
 }
 
-func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingIds [][]byte, trustAttestations bool, trusted3Ps map[string]EncryptionKey) (*CaveatSet, error) {
+func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingIds [][]byte, trustAttestations bool, trusted3Ps map[string][]EncryptionKey) (*CaveatSet, error) {
 	if m.Nonce.Proof && m.newProof {
 		return nil, errors.New("can't verify unfinalized proof")
 	}
 
 	if trusted3Ps == nil {
-		trusted3Ps = map[string]EncryptionKey{}
+		trusted3Ps = map[string][]EncryptionKey{}
 	}
 
 	dischargeByTicket := make(map[string]*Macaroon, len(discharges))
@@ -391,10 +391,11 @@ func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingI
 		// trust its attestations. Verify this by comparing signing key from
 		// VerifierKey/ticket.
 		var trustedDischarge bool
-		if ka, ok := trusted3Ps[d.m.Location]; ok {
+
+		for _, ka := range trusted3Ps[d.m.Location] {
 			ticketr, err := unseal(ka, d.m.Nonce.KID)
 			if err != nil {
-				return ret, fmt.Errorf("discharge ticket decrypt: %w", err)
+				continue
 			}
 
 			var ticket wireTicket
@@ -407,6 +408,7 @@ func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingI
 			}
 
 			trustedDischarge = true
+			break
 		}
 
 		dcavs, err := d.m.verify(
