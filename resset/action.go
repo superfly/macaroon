@@ -1,6 +1,11 @@
 package resset
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/superfly/macaroon"
+)
 
 // Action is an RWX-style bitmap of actions that can be taken on a resource
 // (eg org, app, machine). An Action can describe the permission limitations
@@ -113,4 +118,22 @@ func (a *Action) UnmarshalJSON(b []byte) error {
 
 func (a Action) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.String())
+}
+
+// Implements macaroon.Caveat
+func init()                                       { macaroon.RegisterCaveatType(new(Action)) }
+func (c *Action) CaveatType() macaroon.CaveatType { return macaroon.CavAction }
+func (c *Action) Name() string                    { return "Action" }
+
+// Implements macaroon.Caveat
+func (c *Action) Prohibits(a macaroon.Access) error {
+	rsa, ok := a.(Access)
+	switch {
+	case !ok:
+		return macaroon.ErrInvalidAccess
+	case !rsa.GetAction().IsSubsetOf(*c):
+		return fmt.Errorf("%w access %s (%s not allowed)", ErrUnauthorizedForAction, rsa.GetAction(), rsa.GetAction().Remove(*c))
+	default:
+		return nil
+	}
 }
