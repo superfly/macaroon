@@ -66,7 +66,7 @@ func (c *Organization) Prohibits(a macaroon.Access) error {
 		return macaroon.ErrInvalidAccess
 	case f.GetOrgID() == nil:
 		return fmt.Errorf("%w org", resset.ErrResourceUnspecified)
-	case c.ID != *f.GetOrgID():
+	case c.ID != resset.ZeroID[uint64]() && c.ID != *f.GetOrgID():
 		return fmt.Errorf("%w org %d, only %d", resset.ErrUnauthorizedForResource, *f.GetOrgID(), c.ID)
 	case !f.GetAction().IsSubsetOf(c.Mask):
 		return fmt.Errorf("%w access %s (%s not allowed)", resset.ErrUnauthorizedForAction, f.GetAction(), f.GetAction().Remove(c.Mask))
