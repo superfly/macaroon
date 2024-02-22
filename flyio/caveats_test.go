@@ -55,43 +55,43 @@ func TestNoAdminFeatures(t *testing.T) {
 	}
 
 	yes(&Access{
-		DeprecatedOrgID: uptr(1),
-		Action:          resset.ActionAll,
-		Feature:         ptr("wg"),
+		OrgID:   uptr(1),
+		Action:  resset.ActionAll,
+		Feature: ptr("wg"),
 	})
 
 	yes(&Access{
-		DeprecatedOrgID: uptr(1),
-		Action:          resset.ActionRead,
-		Feature:         ptr("membership"),
+		OrgID:   uptr(1),
+		Action:  resset.ActionRead,
+		Feature: ptr("membership"),
 	})
 
 	yes(&Access{
-		DeprecatedOrgID: uptr(1),
-		Action:          resset.ActionAll,
+		OrgID:  uptr(1),
+		Action: resset.ActionAll,
 	})
 
 	no(&Access{
-		DeprecatedOrgID: uptr(1),
-		Action:          resset.ActionWrite,
-		Feature:         ptr("membership"),
+		OrgID:   uptr(1),
+		Action:  resset.ActionWrite,
+		Feature: ptr("membership"),
 	}, resset.ErrUnauthorizedForAction)
 
 	no(&Access{
-		DeprecatedOrgID: uptr(1),
-		Action:          resset.ActionRead,
-		Feature:         ptr("unknown"),
+		OrgID:   uptr(1),
+		Action:  resset.ActionRead,
+		Feature: ptr("unknown"),
 	}, resset.ErrUnauthorizedForResource)
 
 	no(&Access{
-		DeprecatedOrgID: uptr(1),
-		Action:          resset.ActionNone,
-		Feature:         ptr(""),
+		OrgID:   uptr(1),
+		Action:  resset.ActionNone,
+		Feature: ptr(""),
 	}, resset.ErrUnauthorizedForResource)
 
 	no(&Access{
-		DeprecatedOrgID: uptr(1),
-		Action:          resset.ActionNone,
-		Feature:         ptr(""),
+		OrgID:   uptr(1),
+		Action:  resset.ActionNone,
+		Feature: ptr(""),
 	}, resset.ErrUnauthorizedForResource)
 }

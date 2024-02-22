@@ -35,7 +35,7 @@ func OrganizationScope(cs *macaroon.CaveatSet) (uint64, error) {
 
 	orgCS := typedCaveatSet(cavs...)
 
-	if err := orgCS.Validate(&Access{DeprecatedOrgID: &cavs[0].ID, Action: resset.ActionNone}); err != nil {
+	if err := orgCS.Validate(&Access{OrgID: &cavs[0].ID, Action: resset.ActionNone}); err != nil {
 		return 0, err
 	}
 
@@ -64,9 +64,9 @@ func AppScope(cs *macaroon.CaveatSet) []uint64 {
 	appCS := typedCaveatSet(cavs...)
 	maps.DeleteFunc(possibleIDs, func(id uint64, _ bool) bool {
 		err := appCS.Validate(&Access{
-			DeprecatedOrgID: ptr(uint64(999)), // access requires an org
-			Action:          resset.ActionNone,
-			DeprecatedAppID: &id,
+			OrgID:  ptr(uint64(999)), // access requires an org
+			Action: resset.ActionNone,
+			AppID:  &id,
 		})
 
 		return err != nil
@@ -106,10 +106,10 @@ func ClusterScope(cs *macaroon.CaveatSet) []string {
 	clusterCS := typedCaveatSet(cavs...)
 	maps.DeleteFunc(possibleIDs, func(id string, _ bool) bool {
 		err := clusterCS.Validate(&Access{
-			DeprecatedOrgID: ptr(uint64(999)), // access requires an org
-			Action:          resset.ActionNone,
-			Feature:         ptr(FeatureLFSC),
-			Cluster:         &id,
+			OrgID:   ptr(uint64(999)), // access requires an org
+			Action:  resset.ActionNone,
+			Feature: ptr(FeatureLFSC),
+			Cluster: &id,
 		})
 
 		return err != nil
@@ -143,7 +143,7 @@ func AppsAllowing(cs *macaroon.CaveatSet, action resset.Action) (uint64, []uint6
 	// no app restrictions, check that action is allowed on apps in general
 	if appScope == nil {
 		var zeroID uint64
-		if err := cs.Validate(&Access{DeprecatedOrgID: &orgScope, DeprecatedAppID: &zeroID, Action: action}); err != nil {
+		if err := cs.Validate(&Access{OrgID: &orgScope, AppID: &zeroID, Action: action}); err != nil {
 			return 0, empty, err
 		}
 		return orgScope, nil, nil
@@ -157,7 +157,7 @@ func AppsAllowing(cs *macaroon.CaveatSet, action resset.Action) (uint64, []uint6
 	// filter scope to those allowing action
 	ret := make([]uint64, 0, len(appScope))
 	for _, appID := range appScope {
-		if err := cs.Validate(&Access{DeprecatedOrgID: &orgScope, DeprecatedAppID: &appID, Action: action}); err == nil {
+		if err := cs.Validate(&Access{OrgID: &orgScope, AppID: &appID, Action: action}); err == nil {
 			ret = append(ret, appID)
 		}
 	}
