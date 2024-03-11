@@ -34,7 +34,7 @@ func (c *FromMachine) Prohibits(a macaroon.Access) error {
 
 	switch {
 	case !isFlyioAccess:
-		return macaroon.ErrInvalidAccess
+		return fmt.Errorf("%w: access isnt SourceMachineGetter", macaroon.ErrInvalidAccess)
 	case f.GetSourceMachine() == nil:
 		return fmt.Errorf("%w missing SourceMachine", macaroon.ErrInvalidAccess)
 	case c.ID != *f.GetSourceMachine():
@@ -63,7 +63,7 @@ func (c *Organization) Prohibits(a macaroon.Access) error {
 
 	switch {
 	case !isFlyioAccess:
-		return macaroon.ErrInvalidAccess
+		return fmt.Errorf("%w: access isnt OrgIDGetter", macaroon.ErrInvalidAccess)
 	case f.GetOrgID() == nil:
 		return fmt.Errorf("%w org", resset.ErrResourceUnspecified)
 	case c.ID != resset.ZeroID[uint64]() && c.ID != *f.GetOrgID():
@@ -93,7 +93,7 @@ func (c *Apps) Name() string                    { return "Apps" }
 func (c *Apps) Prohibits(a macaroon.Access) error {
 	f, isFlyioAccess := a.(AppIDGetter)
 	if !isFlyioAccess {
-		return macaroon.ErrInvalidAccess
+		return fmt.Errorf("%w: access isnt AppIDGetter", macaroon.ErrInvalidAccess)
 	}
 	return c.Apps.Prohibits(f.GetAppID(), f.GetAction())
 }
@@ -109,7 +109,7 @@ func (c *Volumes) Name() string                    { return "Volumes" }
 func (c *Volumes) Prohibits(a macaroon.Access) error {
 	f, isFlyioAccess := a.(VolumeGetter)
 	if !isFlyioAccess {
-		return macaroon.ErrInvalidAccess
+		return fmt.Errorf("%w: access isnt VolumeGetter", macaroon.ErrInvalidAccess)
 	}
 	return c.Volumes.Prohibits(f.GetVolume(), f.GetAction())
 }
@@ -125,7 +125,7 @@ func (c *Machines) Name() string                    { return "Machines" }
 func (c *Machines) Prohibits(a macaroon.Access) error {
 	f, isFlyioAccess := a.(MachineGetter)
 	if !isFlyioAccess {
-		return macaroon.ErrInvalidAccess
+		return fmt.Errorf("%w: access isnt MachineGetter", macaroon.ErrInvalidAccess)
 	}
 	return c.Machines.Prohibits(f.GetMachine(), f.GetAction())
 }
@@ -141,7 +141,7 @@ func (c *MachineFeatureSet) Name() string                    { return "MachineFe
 func (c *MachineFeatureSet) Prohibits(a macaroon.Access) error {
 	f, isFlyioAccess := a.(MachineFeatureGetter)
 	if !isFlyioAccess {
-		return macaroon.ErrInvalidAccess
+		return fmt.Errorf("%w: access isnt MachineFeatureGetter", macaroon.ErrInvalidAccess)
 	}
 	return c.Features.Prohibits(f.GetMachineFeature(), f.GetAction())
 }
@@ -162,7 +162,7 @@ func (c *FeatureSet) Name() string                    { return "FeatureSet" }
 func (c *FeatureSet) Prohibits(a macaroon.Access) error {
 	f, isFlyioAccess := a.(FeatureGetter)
 	if !isFlyioAccess {
-		return macaroon.ErrInvalidAccess
+		return fmt.Errorf("%w: access isnt FeatureGetter", macaroon.ErrInvalidAccess)
 	}
 	return c.Features.Prohibits(f.GetFeature(), f.GetAction())
 }
@@ -179,7 +179,7 @@ func (c *Mutations) Name() string                    { return "Mutations" }
 func (c *Mutations) Prohibits(a macaroon.Access) error {
 	f, isFlyioAccess := a.(MutationGetter)
 	if !isFlyioAccess {
-		return macaroon.ErrInvalidAccess
+		return fmt.Errorf("%w: access isnt MutationGetter", macaroon.ErrInvalidAccess)
 	}
 
 	if f.GetMutation() == nil {
@@ -230,7 +230,7 @@ func (c *Clusters) Name() string                    { return "Clusters" }
 func (c *Clusters) Prohibits(a macaroon.Access) error {
 	f, isFlyioAccess := a.(ClusterGetter)
 	if !isFlyioAccess {
-		return macaroon.ErrInvalidAccess
+		return fmt.Errorf("%w: access isnt ClusterGetter", macaroon.ErrInvalidAccess)
 	}
 
 	return c.Clusters.Prohibits(f.GetCluster(), f.GetAction())
@@ -290,7 +290,7 @@ func (c *NoAdminFeatures) Name() string                    { return "NoAdminFeat
 func (c *NoAdminFeatures) Prohibits(a macaroon.Access) error {
 	f, isFlyioAccess := a.(FeatureGetter)
 	if !isFlyioAccess {
-		return macaroon.ErrInvalidAccess
+		return fmt.Errorf("%w: access isnt FeatureGetter", macaroon.ErrInvalidAccess)
 	}
 	if f.GetFeature() == nil {
 		return nil
