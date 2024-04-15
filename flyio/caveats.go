@@ -3,6 +3,8 @@ package flyio
 import (
 	"fmt"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/resset"
 )
@@ -19,6 +21,8 @@ const (
 	CavFromMachineSource = macaroon.CavFlyioFromMachineSource
 	CavClusters          = macaroon.CavFlyioClusters
 	CavNoAdminFeatures   = macaroon.CavNoAdminFeatures
+	CavCommands          = macaroon.CavFlyioCommands
+	CavCommandsArgs      = macaroon.CavFlyioCommandsArgs
 )
 
 type FromMachine struct {
@@ -183,9 +187,7 @@ func (c *Mutations) Prohibits(a macaroon.Access) error {
 	}
 
 	if f.GetMutation() == nil {
-		// explicitly don't return resset.ErrResourceUnspecified. A mutation isn't a
-		// resource and can't be used with IfPresent caveats.
-		return fmt.Errorf("%w: only authorized for graphql mutations", macaroon.ErrUnauthorized)
+		return fmt.Errorf("%w: only authorized for graphql mutations", resset.ErrResourceUnspecified)
 	}
 
 	var found bool
@@ -310,6 +312,69 @@ func (c *NoAdminFeatures) Prohibits(a macaroon.Access) error {
 			f.GetAction().Remove(memberPermission),
 			*f.GetFeature(),
 		)
+	}
+
+	return nil
+}
+
+// Commands is a list of command names allowed by this token.
+type Commands struct {
+	Commands []string `json:"commands"`
+}
+
+func init()                                         { macaroon.RegisterCaveatType(&Commands{}) }
+func (c *Commands) CaveatType() macaroon.CaveatType { return CavCommands }
+func (c *Commands) Name() string                    { return "Commands" }
+
+func (c *Commands) Prohibits(a macaroon.Access) error {
+	f, isFlyioAccess := a.(CommandGetter)
+	if !isFlyioAccess {
+		return fmt.Errorf("%w: access isnt CommandGetter", macaroon.ErrInvalidAccess)
+	}
+
+	commandArgs := f.GetCommand()
+	if commandArgs == nil {
+		return fmt.Errorf("%w: only authorized for command execution", resset.ErrResourceUnspecified)
+	}
+
+	commandName := commandArgs[0]
+	found := slices.Contains(c.Commands, commandName)
+	if !found {
+		return fmt.Errorf("%w commands %s", resset.ErrUnauthorizedForResource, commandArgs)
+	}
+
+	return nil
+}
+
+// CommandsArgs is a list of command argument vectors allowed by this token.
+type CommandsArgs struct {
+	Arguments [][]string `json:"arguments"`
+}
+
+func init()                                             { macaroon.RegisterCaveatType(&CommandsArgs{}) }
+func (c *CommandsArgs) CaveatType() macaroon.CaveatType { return CavCommandsArgs }
+func (c *CommandsArgs) Name() string                    { return "CommandsArgs" }
+
+func (c *CommandsArgs) Prohibits(a macaroon.Access) error {
+	f, isFlyioAccess := a.(CommandGetter)
+	if !isFlyioAccess {
+		return fmt.Errorf("%w: access isnt CommandGetter", macaroon.ErrInvalidAccess)
+	}
+
+	commandArgs := f.GetCommand()
+	if commandArgs == nil {
+		return fmt.Errorf("%w: only authorized for command execution", resset.ErrResourceUnspecified)
+	}
+
+	var found bool
+	for _, allowedCommandArgs := range c.Arguments {
+		if slices.Equal(commandArgs, allowedCommandArgs) {
+			found = true
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("%w commands %s", resset.ErrUnauthorizedForResource, commandArgs)
 	}
 
 	return nil

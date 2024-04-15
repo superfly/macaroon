@@ -22,6 +22,8 @@ func TestCaveatSerialization(t *testing.T) {
 		&FromMachine{ID: "asdf"},
 		&Clusters{Clusters: resset.New(resset.ActionRead, "123")},
 		&NoAdminFeatures{},
+		&Commands{Commands: []string{"123"}},
+		&CommandsArgs{Arguments: [][]string{[]string{"123"}}},
 	)
 
 	b, err := json.Marshal(cs)
@@ -94,4 +96,105 @@ func TestNoAdminFeatures(t *testing.T) {
 		Action:  resset.ActionNone,
 		Feature: ptr(""),
 	}, resset.ErrUnauthorizedForResource)
+}
+
+func TestCommands(t *testing.T) {
+	cs := macaroon.NewCaveatSet(&Commands{[]string{"uptime", "uname"}})
+
+	yes := func(access *Access) {
+		t.Helper()
+		assert.NoError(t, cs.Validate(access))
+	}
+
+	no := func(access *Access, target error) {
+		t.Helper()
+		err := cs.Validate(access)
+		assert.Error(t, err)
+		assert.IsError(t, err, target)
+	}
+
+	yes(&Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionAll,
+		Command: []string{"uptime"},
+	})
+
+	yes(&Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionAll,
+		Command: []string{"uptime", "arg"},
+	})
+
+	yes(&Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionNone,
+		Command: []string{"uname", "arg"},
+	})
+
+	no(&Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionAll,
+		Command: []string{"ls"},
+	}, resset.ErrUnauthorizedForResource)
+
+	no(&Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionAll,
+		Command: []string{"ls", "arg"},
+	}, resset.ErrUnauthorizedForResource)
+
+	no(&Access{
+		OrgID:  uptr(1),
+		Action: resset.ActionAll,
+	}, resset.ErrResourceUnspecified)
+}
+
+func TestCommandsArgs(t *testing.T) {
+	cs := macaroon.NewCaveatSet(&CommandsArgs{
+		[][]string{
+			[]string{"uptime", "arg"},
+			[]string{"uname", "arg"},
+		},
+	})
+
+	yes := func(access *Access) {
+		t.Helper()
+		assert.NoError(t, cs.Validate(access))
+	}
+
+	no := func(access *Access, target error) {
+		t.Helper()
+		err := cs.Validate(access)
+		assert.Error(t, err)
+		assert.IsError(t, err, target)
+	}
+
+	yes(&Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionAll,
+		Command: []string{"uptime", "arg"},
+	})
+
+	yes(&Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionNone,
+		Command: []string{"uname", "arg"},
+	})
+
+	no(&Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionAll,
+		Command: []string{"uptime"},
+	}, resset.ErrUnauthorizedForResource)
+
+	no(&Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionAll,
+		Command: []string{"uptime", "arg", "arg2"},
+	}, resset.ErrUnauthorizedForResource)
+
+	no(&Access{
+		OrgID:  uptr(1),
+		Action: resset.ActionAll,
+	}, resset.ErrResourceUnspecified)
 }

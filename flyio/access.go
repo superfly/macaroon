@@ -19,6 +19,7 @@ type Access struct {
 	Mutation       *string       `json:"mutation,omitempty"`
 	SourceMachine  *string       `json:"sourceMachine,omitempty"`
 	Cluster        *string       `json:"cluster,omitempty"`
+	Command        []string      `json:"command,omitempty"`
 }
 
 var (
@@ -188,3 +189,15 @@ var _ ClusterGetter = (*Access)(nil)
 
 // GetCluster implements ClusterGetter.
 func (a *Access) GetCluster() *string { return a.Cluster }
+
+// CommandGetter is an interface allowing other packages to implement Accesses
+// that work with Caveats defined in this package.
+type CommandGetter interface {
+	macaroon.Access
+	GetCommand() []string
+}
+
+var _ CommandGetter = (*Access)(nil)
+
+// GetCommand implements CommandGetter.
+func (a *Access) GetCommand() []string { return a.Command }
