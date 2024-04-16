@@ -101,52 +101,75 @@ func TestNoAdminFeatures(t *testing.T) {
 func TestCommands(t *testing.T) {
 	cs := macaroon.NewCaveatSet(&Commands{[]string{"uptime", "uname"}})
 
-	yes := func(access *Access) {
+	yes := func(cs *macaroon.CaveatSet, access *Access) {
 		t.Helper()
 		assert.NoError(t, cs.Validate(access))
 	}
 
-	no := func(access *Access, target error) {
+	no := func(cs *macaroon.CaveatSet, access *Access, target error) {
 		t.Helper()
 		err := cs.Validate(access)
 		assert.Error(t, err)
 		assert.IsError(t, err, target)
 	}
 
-	yes(&Access{
+	yes(cs, &Access{
 		OrgID:   uptr(1),
 		Action:  resset.ActionAll,
 		Command: []string{"uptime"},
 	})
 
-	yes(&Access{
+	yes(cs, &Access{
 		OrgID:   uptr(1),
 		Action:  resset.ActionAll,
 		Command: []string{"uptime", "arg"},
 	})
 
-	yes(&Access{
+	yes(cs, &Access{
 		OrgID:   uptr(1),
 		Action:  resset.ActionNone,
 		Command: []string{"uname", "arg"},
 	})
 
-	no(&Access{
+	no(cs, &Access{
 		OrgID:   uptr(1),
 		Action:  resset.ActionAll,
 		Command: []string{"ls"},
 	}, resset.ErrUnauthorizedForResource)
 
-	no(&Access{
+	no(cs, &Access{
 		OrgID:   uptr(1),
 		Action:  resset.ActionAll,
 		Command: []string{"ls", "arg"},
 	}, resset.ErrUnauthorizedForResource)
 
-	no(&Access{
+	no(cs, &Access{
 		OrgID:  uptr(1),
 		Action: resset.ActionAll,
 	}, resset.ErrResourceUnspecified)
+
+	csIf := macaroon.NewCaveatSet(
+		&resset.IfPresent{
+			Ifs:  macaroon.NewCaveatSet(&Commands{[]string{"uptime", "uname"}}),
+			Else: resset.ActionDelete,
+		},
+	)
+
+	yes(csIf, &Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionNone,
+		Command: []string{"uname", "arg"},
+	})
+
+	yes(csIf, &Access{
+		OrgID:  uptr(1),
+		Action: resset.ActionDelete,
+	})
+
+	no(csIf, &Access{
+		OrgID:  uptr(1),
+		Action: resset.ActionWrite,
+	}, resset.ErrUnauthorizedForAction)
 }
 
 func TestCommandsArgs(t *testing.T) {
