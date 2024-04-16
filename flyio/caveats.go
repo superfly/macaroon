@@ -358,9 +358,10 @@ func (c *Commands) Prohibits(a macaroon.Access) error {
 			continue
 		}
 		found = true
+		break
 	}
 	if !found {
-		return fmt.Errorf("%w commands %s", resset.ErrUnauthorizedForResource, commandArgs)
+		return fmt.Errorf("%w commands %v", resset.ErrUnauthorizedForResource, commandArgs)
 	}
 
 	return nil
