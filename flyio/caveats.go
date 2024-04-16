@@ -22,7 +22,6 @@ const (
 	CavClusters          = macaroon.CavFlyioClusters
 	CavNoAdminFeatures   = macaroon.CavNoAdminFeatures
 	CavCommands          = macaroon.CavFlyioCommands
-	CavCommandsArgs      = macaroon.CavFlyioCommandsArgs
 )
 
 type FromMachine struct {
@@ -317,9 +316,16 @@ func (c *NoAdminFeatures) Prohibits(a macaroon.Access) error {
 	return nil
 }
 
-// Commands is a list of command names allowed by this token.
-type Commands struct {
-	Commands []string `json:"commands"`
+// Commands is a list of commands allowed by this token.
+// The zero value rejects any command.
+type Commands []Command
+
+// Command is a single command to allow. The zero value allows any command.
+// If exact is true, the args must match exactly. Otherwise the args must
+// match the prefix of the command being executed.
+type Command struct {
+	Args  []string `json:"args"`
+	Exact bool     `json:"exact,omitempty"`
 }
 
 func init()                                         { macaroon.RegisterCaveatType(&Commands{}) }
@@ -337,42 +343,22 @@ func (c *Commands) Prohibits(a macaroon.Access) error {
 		return fmt.Errorf("%w: only authorized for command execution", resset.ErrResourceUnspecified)
 	}
 
-	commandName := commandArgs[0]
-	found := slices.Contains(c.Commands, commandName)
-	if !found {
-		return fmt.Errorf("%w commands %s", resset.ErrUnauthorizedForResource, commandArgs)
-	}
-
-	return nil
-}
-
-// CommandsArgs is a list of command argument vectors allowed by this token.
-type CommandsArgs struct {
-	Arguments [][]string `json:"arguments"`
-}
-
-func init()                                             { macaroon.RegisterCaveatType(&CommandsArgs{}) }
-func (c *CommandsArgs) CaveatType() macaroon.CaveatType { return CavCommandsArgs }
-func (c *CommandsArgs) Name() string                    { return "CommandsArgs" }
-
-func (c *CommandsArgs) Prohibits(a macaroon.Access) error {
-	f, isFlyioAccess := a.(CommandGetter)
-	if !isFlyioAccess {
-		return fmt.Errorf("%w: access isnt CommandGetter", macaroon.ErrInvalidAccess)
-	}
-
-	commandArgs := f.GetCommand()
-	if commandArgs == nil {
-		return fmt.Errorf("%w: only authorized for command execution", resset.ErrResourceUnspecified)
-	}
-
 	var found bool
-	for _, allowedCommandArgs := range c.Arguments {
-		if slices.Equal(commandArgs, allowedCommandArgs) {
-			found = true
+	allowedCommands := *c
+	for _, allowedCommand := range allowedCommands {
+		if len(allowedCommand.Args) > len(commandArgs) {
+			continue
 		}
-	}
 
+		if allowedCommand.Exact && len(allowedCommand.Args) != len(commandArgs) {
+			continue
+		}
+
+		if !slices.Equal(allowedCommand.Args, commandArgs[:len(allowedCommand.Args)]) {
+			continue
+		}
+		found = true
+	}
 	if !found {
 		return fmt.Errorf("%w commands %s", resset.ErrUnauthorizedForResource, commandArgs)
 	}
