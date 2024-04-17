@@ -22,6 +22,7 @@ func TestCaveatSerialization(t *testing.T) {
 		&FromMachine{ID: "asdf"},
 		&Clusters{Clusters: resset.New(resset.ActionRead, "123")},
 		&NoAdminFeatures{},
+		&Commands{Command{[]string{"123"}, true}},
 	)
 
 	b, err := json.Marshal(cs)
@@ -94,4 +95,107 @@ func TestNoAdminFeatures(t *testing.T) {
 		Action:  resset.ActionNone,
 		Feature: ptr(""),
 	}, resset.ErrUnauthorizedForResource)
+}
+
+func TestCommands(t *testing.T) {
+	yes := func(cs *macaroon.CaveatSet, access *Access) {
+		t.Helper()
+		assert.NoError(t, cs.Validate(access))
+	}
+
+	no := func(cs *macaroon.CaveatSet, access *Access, target error) {
+		t.Helper()
+		err := cs.Validate(access)
+		assert.Error(t, err)
+		assert.IsError(t, err, target)
+	}
+
+	cs := macaroon.NewCaveatSet(&Commands{
+		Command{[]string{"cmd1", "arg1"}, false},
+		Command{[]string{"cmd2", "arg1"}, true},
+	})
+
+	yes(cs, &Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionAll,
+		Command: []string{"cmd1", "arg1"},
+	})
+
+	yes(cs, &Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionAll,
+		Command: []string{"cmd1", "arg1", "arg2"},
+	})
+
+	yes(cs, &Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionAll,
+		Command: []string{"cmd2", "arg1"},
+	})
+
+	no(cs, &Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionAll,
+		Command: []string{"cmd2", "arg1", "arg2"},
+	}, resset.ErrUnauthorizedForResource)
+
+	no(cs, &Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionAll,
+		Command: []string{"cmd3", "arg1"},
+	}, resset.ErrUnauthorizedForResource)
+
+	no(cs, &Access{
+		OrgID:  uptr(1),
+		Action: resset.ActionAll,
+	}, resset.ErrResourceUnspecified)
+
+	csNone := macaroon.NewCaveatSet(&Commands{})
+
+	no(csNone, &Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionAll,
+		Command: []string{"cmd2", "arg1", "arg2", "arg3"},
+	}, resset.ErrUnauthorizedForResource)
+
+	no(csNone, &Access{
+		OrgID:  uptr(1),
+		Action: resset.ActionAll,
+	}, resset.ErrResourceUnspecified)
+
+	csAny := macaroon.NewCaveatSet(&Commands{Command{}})
+
+	yes(csAny, &Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionAll,
+		Command: []string{"cmd2", "arg1", "arg2", "arg3"},
+	})
+
+	no(csAny, &Access{
+		OrgID:  uptr(1),
+		Action: resset.ActionAll,
+	}, resset.ErrResourceUnspecified)
+
+	csIf := macaroon.NewCaveatSet(
+		&resset.IfPresent{
+			Ifs:  macaroon.NewCaveatSet(&Commands{Command{}}),
+			Else: resset.ActionDelete,
+		},
+	)
+
+	yes(csIf, &Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionNone,
+		Command: []string{"uname", "arg"},
+	})
+
+	yes(csIf, &Access{
+		OrgID:  uptr(1),
+		Action: resset.ActionDelete,
+	})
+
+	no(csIf, &Access{
+		OrgID:  uptr(1),
+		Action: resset.ActionWrite,
+	}, resset.ErrUnauthorizedForAction)
 }
