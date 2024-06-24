@@ -5,7 +5,7 @@ This document covers the general mechanisms of Macaroons as they are used at
 Fly to do access control. It does not cover the cryptographic constructs.
 
 Macaroons are tokens. They are define in https://github.com/superfly/macaroon.
-At fly we pass them to services in `Authorization: Bearer <token>` HTTP headers.
+At fly we pass them to services in `Authorization: FlyV1 <token>` HTTP headers.
 Several tokens can be passed in a single header, separated by commas. Access
 control is allowed if any one of the bearer tokens allows access.
 
@@ -59,11 +59,14 @@ The `Action` field encodes a set of actions requested: Read, Write, Create, Dele
 as a string "rwcdC". The special encoding "*" denotes the set of all possible actions.
 
 The other fields are optional fields, and denote what is being operated on.
+Some fields are related to other fields. For example, an AppID can only be
+present if an OrgID is present, and a Machine can only be present if an AppID is present.
+
 
 ## Bearer Token List
 
 A bearer token list is a comma-seperated list of Macaroons provided in
-the `Authorization: Bearer <tokens>` HTTP header. The list of tokens allows an access
+the `Authorization: FlyV1 <tokens>` HTTP header. The list of tokens allows an access
 if any of its tokens allows the access.
 
 # Macaroon
@@ -257,8 +260,8 @@ then instead the access is allowed if the requested action is a subset of the ac
 the "else" clause. This is the only Caveat that behaves differently when some Caveats
 indicate that they are not relevant.
 
-Note: if ANY of the IfPresent Caveat's constituents are relevant, then ALL of the Caveats
-must allow the access.
+Note: if ANY of the IfPresent Caveat's constituents are relevant, then ALL of the relevant
+Caveats must allow the access.
 
 ```
   {
