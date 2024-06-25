@@ -33,7 +33,7 @@ func main() {
 	}
 	v.KID = keyFingerprint(v.Key)
 
-	for _, c := range caveats.Caveats {
+	for _, c := range caveats.Caveats() {
 		m, _ := macaroon.New(v.KID, v.Location, v.Key)
 
 		// put attestations in discharge tokens
@@ -57,7 +57,7 @@ func main() {
 	aBaseTok, _ := aBase.Encode()
 	aBaseHdr := macaroon.ToAuthorizationHeader(otherTok, aBaseTok, otherTok)
 	v.Attenuation[aBaseHdr] = map[string]string{}
-	for _, c := range caveats.Caveats {
+	for _, c := range caveats.Caveats() {
 		cpy := ptr(*aBase)
 		cpy.UnsafeCaveats = *macaroon.NewCaveatSet()
 		cpy.Add(c)
@@ -66,7 +66,7 @@ func main() {
 		v.Attenuation[aBaseHdr][base64.StdEncoding.EncodeToString(cavsPacked)] = macaroon.ToAuthorizationHeader(otherTok, cpyEnc, otherTok)
 	}
 
-	for _, c := range caveats.Caveats {
+	for _, c := range caveats.Caveats() {
 		v.Caveats[c.Name()] = pack(c)
 	}
 

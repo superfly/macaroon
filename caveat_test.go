@@ -16,17 +16,17 @@ func TestCaveatRegistry(t *testing.T) {
 	)
 
 	assert.NoError(t, json.Unmarshal(j1, cs))
-	assert.Equal(t, 1, len(cs.Caveats))
-	assert.Equal(t, c, cs.Caveats[0])
+	assert.Equal(t, 1, len(cs.Caveats()))
+	assert.Equal(t, c, cs.Caveats()[0])
 
 	RegisterCaveatJSONAlias(cavTestParentResource, "Foobar")
 	t.Cleanup(func() { unegisterCaveatJSONAlias("Foobar") })
 
 	assert.NoError(t, json.Unmarshal(j1, cs))
-	assert.Equal(t, 1, len(cs.Caveats))
-	assert.Equal(t, c, cs.Caveats[0])
+	assert.Equal(t, 1, len(cs.Caveats()))
+	assert.Equal(t, c, cs.Caveats()[0])
 
 	assert.NoError(t, json.Unmarshal(j2, cs))
-	assert.Equal(t, 1, len(cs.Caveats))
-	assert.Equal(t, c, cs.Caveats[0])
+	assert.Equal(t, 1, len(cs.Caveats()))
+	assert.Equal(t, c, cs.Caveats()[0])
 }

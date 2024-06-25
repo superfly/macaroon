@@ -53,5 +53,5 @@ func dischargeTicket(ka EncryptionKey, location string, ticket []byte, issueProo
 		return nil, nil, err
 	}
 
-	return tWire.Caveats.Caveats, dm, nil
+	return tWire.Caveats.Caveats(), dm, nil
 }
