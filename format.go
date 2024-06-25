@@ -57,7 +57,7 @@ tokLoop:
 	}
 
 	if len(toks) == 0 {
-		return nil, fmt.Errorf("parse tokens: no valid tokens found")
+		return nil, fmt.Errorf("parse tokens: no valid tokens found: %w", ErrUnrecognizedToken)
 	}
 
 	return toks, nil
