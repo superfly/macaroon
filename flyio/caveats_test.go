@@ -117,63 +117,82 @@ func TestCommands(t *testing.T) {
 
 	yes(cs, &Access{
 		OrgID:   uptr(1),
-		Action:  resset.ActionAll,
+		AppID:   uptr(1),
+		Machine: ptr("machine"),
 		Command: []string{"cmd1", "arg1"},
 	})
 
 	yes(cs, &Access{
 		OrgID:   uptr(1),
 		Action:  resset.ActionAll,
+		AppID:   uptr(1),
+		Machine: ptr("machine"),
 		Command: []string{"cmd1", "arg1", "arg2"},
 	})
 
 	yes(cs, &Access{
 		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		Machine: ptr("machine"),
 		Action:  resset.ActionAll,
 		Command: []string{"cmd2", "arg1"},
 	})
 
 	no(cs, &Access{
 		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		Machine: ptr("machine"),
 		Action:  resset.ActionAll,
 		Command: []string{"cmd2", "arg1", "arg2"},
 	}, resset.ErrUnauthorizedForResource)
 
 	no(cs, &Access{
 		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		Machine: ptr("machine"),
 		Action:  resset.ActionAll,
 		Command: []string{"cmd3", "arg1"},
 	}, resset.ErrUnauthorizedForResource)
 
 	no(cs, &Access{
-		OrgID:  uptr(1),
-		Action: resset.ActionAll,
+		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		Machine: ptr("machine"),
+		Action:  resset.ActionAll,
 	}, resset.ErrResourceUnspecified)
 
 	csNone := macaroon.NewCaveatSet(&Commands{})
 
 	no(csNone, &Access{
 		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		Machine: ptr("machine"),
 		Action:  resset.ActionAll,
 		Command: []string{"cmd2", "arg1", "arg2", "arg3"},
 	}, resset.ErrUnauthorizedForResource)
 
 	no(csNone, &Access{
-		OrgID:  uptr(1),
-		Action: resset.ActionAll,
+		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		Machine: ptr("machine"),
+		Action:  resset.ActionAll,
 	}, resset.ErrResourceUnspecified)
 
 	csAny := macaroon.NewCaveatSet(&Commands{Command{}})
 
 	yes(csAny, &Access{
 		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		Machine: ptr("machine"),
 		Action:  resset.ActionAll,
 		Command: []string{"cmd2", "arg1", "arg2", "arg3"},
 	})
 
 	no(csAny, &Access{
-		OrgID:  uptr(1),
-		Action: resset.ActionAll,
+		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		Machine: ptr("machine"),
+		Action:  resset.ActionAll,
 	}, resset.ErrResourceUnspecified)
 
 	csIf := macaroon.NewCaveatSet(
@@ -185,17 +204,23 @@ func TestCommands(t *testing.T) {
 
 	yes(csIf, &Access{
 		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		Machine: ptr("machine"),
 		Action:  resset.ActionNone,
 		Command: []string{"uname", "arg"},
 	})
 
 	yes(csIf, &Access{
-		OrgID:  uptr(1),
-		Action: resset.ActionDelete,
+		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		Machine: ptr("machine"),
+		Action:  resset.ActionDelete,
 	})
 
 	no(csIf, &Access{
-		OrgID:  uptr(1),
-		Action: resset.ActionWrite,
+		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		Machine: ptr("machine"),
+		Action:  resset.ActionWrite,
 	}, resset.ErrUnauthorizedForAction)
 }

@@ -22,6 +22,7 @@ const (
 	CavClusters          = macaroon.CavFlyioClusters
 	CavNoAdminFeatures   = macaroon.CavNoAdminFeatures
 	CavCommands          = macaroon.CavFlyioCommands
+	CavAppFeatureSet     = macaroon.CavFlyioAppFeatureSet
 )
 
 type FromMachine struct {
@@ -365,4 +366,20 @@ func (c *Commands) Prohibits(a macaroon.Access) error {
 	}
 
 	return nil
+}
+
+type AppFeatureSet struct {
+	Features resset.ResourceSet[string] `json:"features"`
+}
+
+func init()                                              { macaroon.RegisterCaveatType(&AppFeatureSet{}) }
+func (c *AppFeatureSet) CaveatType() macaroon.CaveatType { return CavAppFeatureSet }
+func (c *AppFeatureSet) Name() string                    { return "AppFeatureSet" }
+
+func (c *AppFeatureSet) Prohibits(a macaroon.Access) error {
+	f, isFlyioAccess := a.(AppFeatureGetter)
+	if !isFlyioAccess {
+		return fmt.Errorf("%w: access isnt AppFeatureGetter", macaroon.ErrInvalidAccess)
+	}
+	return c.Features.Prohibits(f.GetAppFeature(), f.GetAction())
 }
