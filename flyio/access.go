@@ -2,6 +2,7 @@ package flyio
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/superfly/macaroon"
@@ -12,6 +13,7 @@ type Access struct {
 	Action         resset.Action `json:"action,omitempty"`
 	OrgID          *uint64       `json:"orgid,omitempty"`
 	AppID          *uint64       `json:"appid,omitempty"`
+	AppFeature     *string       `json:"app_feature,omitempty"`
 	Feature        *string       `json:"feature,omitempty"`
 	Volume         *string       `json:"volume,omitempty"`
 	Machine        *string       `json:"machine,omitempty"`
@@ -52,15 +54,22 @@ func (f *Access) Validate() error {
 		return fmt.Errorf("%w: app, org-feature", resset.ErrResourcesMutuallyExclusive)
 	}
 
-	// app-level resources = machines, volumes
-	if f.Machine != nil || f.Volume != nil {
-		if f.AppID == nil {
-			return fmt.Errorf("%w app if app-owned resource is specified", resset.ErrResourceUnspecified)
-		}
-
-		if f.Machine != nil && f.Volume != nil {
-			return fmt.Errorf("%w: volume, machine", resset.ErrResourcesMutuallyExclusive)
-		}
+	// app-level resources = machines, volumes, app-features
+	var appResources []string
+	if f.Machine != nil {
+		appResources = append(appResources, "machine")
+	}
+	if f.Volume != nil {
+		appResources = append(appResources, "volume")
+	}
+	if f.AppFeature != nil {
+		appResources = append(appResources, *f.AppFeature)
+	}
+	if len(appResources) != 0 && f.AppID == nil {
+		return fmt.Errorf("%w app if app-owned resource is specified", resset.ErrResourceUnspecified)
+	}
+	if len(appResources) > 1 {
+		return fmt.Errorf("%w: %s", resset.ErrResourcesMutuallyExclusive, strings.Join(appResources, ", "))
 	}
 
 	// lfsc feature-level resource = clusters
@@ -75,8 +84,18 @@ func (f *Access) Validate() error {
 	}
 
 	// machine feature requires machine
-	if f.MachineFeature != nil && f.Machine == nil {
+	var machineResources []string
+	if f.Command != nil {
+		machineResources = append(machineResources, "command-execution")
+	}
+	if f.MachineFeature != nil {
+		machineResources = append(machineResources, *f.MachineFeature)
+	}
+	if len(machineResources) != 0 && f.Machine == nil {
 		return fmt.Errorf("%w machine ", resset.ErrResourceUnspecified)
+	}
+	if len(machineResources) > 1 {
+		return fmt.Errorf("%w: %s", resset.ErrResourcesMutuallyExclusive, strings.Join(machineResources, ", "))
 	}
 
 	return nil
@@ -105,6 +124,18 @@ var _ AppIDGetter = (*Access)(nil)
 
 // GetAppID implements AppIDGetter.
 func (a *Access) GetAppID() *uint64 { return a.AppID }
+
+// AppFeatureGetter is an interface allowing other packages to implement
+// Accesses that work with Caveats defined in this package.
+type AppFeatureGetter interface {
+	resset.Access
+	GetAppFeature() *string
+}
+
+var _ AppFeatureGetter = (*Access)(nil)
+
+// GetAppFeature implements AppFeatureGetter.
+func (a *Access) GetAppFeature() *string { return a.AppFeature }
 
 // FeatureGetter is an interface allowing other packages to implement Accesses
 // that work with Caveats defined in this package.

@@ -12,6 +12,7 @@ const (
 	permissionTokenLabel = "fm1r"
 	dischargeTokenLabel  = "fm1a"
 	v2TokenLabel         = "fm2"
+	oauthTokenLabel      = "fo1"
 )
 
 // Parses an Authorization header into its constituent tokens.
@@ -28,6 +29,7 @@ func Parse(header string) ([][]byte, error) {
 	strToks := strings.Split(header, ",")
 	toks := make([][]byte, 0, len(strToks))
 
+tokLoop:
 	for _, tok := range strToks {
 		pfx, b64, found := strings.Cut(tok, "_")
 		if !found {
@@ -36,6 +38,8 @@ func Parse(header string) ([][]byte, error) {
 
 		switch pfx {
 		case permissionTokenLabel, dischargeTokenLabel, v2TokenLabel:
+		case oauthTokenLabel:
+			continue tokLoop
 		default:
 			return nil, fmt.Errorf("parse token: invalid token prefix '%s': %w", pfx, ErrUnrecognizedToken)
 		}
@@ -53,7 +57,7 @@ func Parse(header string) ([][]byte, error) {
 	}
 
 	if len(toks) == 0 {
-		return nil, fmt.Errorf("parse tokens: no valid tokens found")
+		return nil, fmt.Errorf("parse tokens: no valid tokens found: %w", ErrUnrecognizedToken)
 	}
 
 	return toks, nil
