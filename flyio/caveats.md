@@ -19,10 +19,11 @@ pass in many tokens to operate across many organizations.
 Macaroons support "third party" caveats. These are special in a few ways.
 Third party caveats are "discharged" by an accompanying third party discharge
 token. A third party caveat in a token fails if there is no accompanying third party
-discharge passed along with the token. Fly only honors third party discharge tokens
-issued by certain trusted third party issuers. These are:
+discharge passed along with the token. Fly only trusts third party discharge tokens
+issued by certain third party issuers. These are:
 - https://api.fly.io/aaa/v1
 - https://auth.fly.io
+
 
 Third party discharge tokens are also special in that we allow them to carry
 attestations, and that they must be "finalized".  These attestations are used
@@ -61,6 +62,7 @@ as a string "rwcdC". The special encoding "*" denotes the set of all possible ac
 The other fields are optional fields, and denote what is being operated on.
 Some fields are related to other fields. For example, an AppID can only be
 present if an OrgID is present, and a Machine can only be present if an AppID is present.
+If these requirements are not met, the access request is considered invalid.
 
 
 ## Bearer Token List
