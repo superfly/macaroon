@@ -409,7 +409,7 @@ access request does not specify a command.
 ## Discharge Access Control
 
 There are additional access controls that can be performed when checking
-third party discharges issued by Fly services.
+third party discharges issued by the `https://auth.fly.io` service.
 The following access request structure is used when checking
 if an access is allowed. It carries information about the users the discharge
 token can be used by:
@@ -455,18 +455,19 @@ The ConfineUser Caveat requires that that the user has a specific user id.
 
 ### ConfineGoogleHD Caveat
 
-The ConfineGoolgeHD Caveat requires that the user has used OAuth to authenticate as a specific Google user ID.
+The ConfineGoolgeHD Caveat requires that the user has used OAuth to authenticate with a Google account in
+a specific domain.
 
 ```
   {
     "type": "ConfineGoogleHD",
-    "body": "1234"
+    "body": "usersRus.com"
   },
 ```
 
 ### ConfineGitHubOrg Caveat
 
-The ConfineGitHubOrg Caveat requires that the user has used OAuth to authenticate as a specific GitHub user ID.
+The ConfineGitHubOrg Caveat requires that the user has used OAuth to authenticate as a specific GitHub organization ID.
 
 ```
   {
@@ -477,7 +478,7 @@ The ConfineGitHubOrg Caveat requires that the user has used OAuth to authenticat
 
 ### MaxValidity Caveat
 
-The MaxValidity Caveat requires that the user has authenticated within a certain amount of time (in seconds)
+The MaxValidity Caveat requires that the discharge token was issued within a certain amount of time (in seconds)
 from the current time.
 
 ```
