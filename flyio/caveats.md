@@ -307,11 +307,7 @@ access request does not specify a mutation.
 
 ### IsUser Caveat
 
-Not sure. To quote: `IsUser is mostyly metadata and plays no role in access validation.`
-
-It is always relevant, but never returns failure.
-
-XXX I think some code searches for this caveat and treats it specially?
+Deprecated. See `FlyioUserID`.
 
 ```
   {
@@ -408,3 +404,97 @@ access request does not specify a command.
     ]
   }
 ```
+
+
+## Discharge Access Control
+
+There are additional access controls that can be performed when checking
+third party discharges issued by Fly services.
+The following access request structure is used when checking
+if an access is allowed. It carries information about the users the discharge
+token can be used by:
+
+```
+type DischargeRequest struct {
+    Flyio  []*FlyioAuth
+    Google []*GoogleAuth
+    GitHub []*GitHubAuth
+    Expiry time.Time
+}
+```
+
+This access request is checked with the following caveats which can be attached
+to third party discharge tokens:
+
+### ConfineOrganization Caveat
+
+The ConfineOrganization Caveat requires that the user belong to a specific organization.
+
+```
+  {
+    "type": "ConfineOrganization",
+    "body": {
+      "id": 1234
+    }
+  },
+```
+
+### ConfineUser Caveat
+
+The ConfineUser Caveat requires that that the user has a specific user id.
+
+```
+  {
+    "type": "ConfineUser",
+    "body": {
+      "id": 1234
+    }
+  },
+```
+
+
+### ConfineGoogleHD Caveat
+
+The ConfineGoolgeHD Caveat requires that the user has used OAuth to authenticate as a specific Google user ID.
+
+```
+  {
+    "type": "ConfineGoogleHD",
+    "body": "1234"
+  },
+```
+
+### ConfineGitHubOrg Caveat
+
+The ConfineGitHubOrg Caveat requires that the user has used OAuth to authenticate as a specific GitHub user ID.
+
+```
+  {
+    "type": "ConfineGitHubOrg",
+    "body": 1234
+  },
+```
+
+### MaxValidity Caveat
+
+The MaxValidity Caveat requires that the user has authenticated within a certain amount of time (in seconds)
+from the current time.
+
+```
+  {
+    "type": "MaxValidity",
+    "body": 60
+  },
+```
+
+### FlyioUserID Caveat
+
+The FlyioUserID Caveat is an attestation, and not a caveat restriction, that carries the Fly user ID of the authenticated user.
+
+### GitHubUserID Caveat
+
+The FlyioUserID Caveat is an attestation, and not a caveat restriction, that carries the GitHub user ID of the authenticated user.
+
+### GoogleUserID Caveat
+
+The FlyioUserID Caveat is an attestation, and not a caveat restriction, that carries the Google user ID of the authenticated user.
