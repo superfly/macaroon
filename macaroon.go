@@ -319,14 +319,15 @@ func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingI
 		trusted3Ps = map[string][]EncryptionKey{}
 	}
 
-	dischargeByTicket := make(map[string]*Macaroon, len(discharges))
+	dischargesByTicket := make(map[string][]*Macaroon, len(discharges))
 	for _, dBuf := range discharges {
 		decoded, err := Decode(dBuf)
 		if err != nil {
 			continue // ignore malformed discharges
 		}
 
-		dischargeByTicket[string(decoded.Nonce.KID)] = decoded
+		skid := string(decoded.Nonce.KID)
+		dischargesByTicket[skid] = append(dischargesByTicket[skid], decoded)
 	}
 
 	curMac := sign(k, m.Nonce.MustEncode())
@@ -334,17 +335,17 @@ func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingI
 	ret := NewCaveatSet()
 
 	type verifyParams struct {
-		m *Macaroon
+		m []*Macaroon
 		k SigningKey
 	}
 
-	dischargesToVerify := make([]*verifyParams, 0, len(dischargeByTicket))
+	dischargesToVerify := make([]*verifyParams, 0, len(dischargesByTicket))
 	thisTokenBindingIds := [][]byte{digest(curMac)}
 
 	for _, c := range m.UnsafeCaveats.Caveats {
 		switch cav := c.(type) {
 		case *Caveat3P:
-			discharge, ok := dischargeByTicket[string(cav.Ticket)]
+			discharges, ok := dischargesByTicket[string(cav.Ticket)]
 			if !ok {
 				return nil, errors.New("no matching discharge token")
 			}
@@ -354,7 +355,7 @@ func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingI
 				return nil, fmt.Errorf("macaroon verify: unseal VerifierKey for third-party caveat: %w", err)
 			}
 
-			dischargesToVerify = append(dischargesToVerify, &verifyParams{discharge, dischargeKey})
+			dischargesToVerify = append(dischargesToVerify, &verifyParams{discharges, dischargeKey})
 		case *BindToParentToken:
 			// TODO @bento: this could be optimized
 			found := false
@@ -386,43 +387,61 @@ func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingI
 		thisTokenBindingIds = append(thisTokenBindingIds, digest(curMac))
 	}
 
-	for _, d := range dischargesToVerify {
-		// If the discharge was actually created by a known third party we can
-		// trust its attestations. Verify this by comparing signing key from
-		// VerifierKey/ticket.
-		var trustedDischarge bool
-
-		for _, ka := range trusted3Ps[d.m.Location] {
-			ticketr, err := unseal(ka, d.m.Nonce.KID)
-			if err != nil {
-				continue
-			}
-
-			var ticket wireTicket
-			if err = msgpack.Unmarshal(ticketr, &ticket); err != nil {
-				return ret, fmt.Errorf("bad ticket in discharge: %w", err)
-			}
-
-			if subtle.ConstantTimeCompare(d.k, ticket.DischargeKey) != 1 {
-				return ret, errors.New("discharge key from ticket/VerifierKey mismatch")
-			}
-
-			trustedDischarge = true
-			break
-		}
-
-		dcavs, err := d.m.verify(
-			d.k,
-			nil, /* don't let them nest yet */
-			thisTokenBindingIds,
-			trustAttestations && trustedDischarge,
-			trusted3Ps,
+	for _, vp := range dischargesToVerify {
+		var (
+			discharged bool
+			dErr       error
 		)
-		if err != nil {
-			return nil, fmt.Errorf("macaroon verify: verify discharge: %w", err)
+
+	dmLoop:
+		for _, dm := range vp.m {
+			// If the discharge was actually created by a known third party we can
+			// trust its attestations. Verify this by comparing signing key from
+			// VerifierKey/ticket.
+			var trustedDischarge bool
+
+		trustLoop:
+			for _, ka := range trusted3Ps[dm.Location] {
+				ticketr, err := unseal(ka, dm.Nonce.KID)
+				if err != nil {
+					continue trustLoop
+				}
+
+				var ticket wireTicket
+				if err = msgpack.Unmarshal(ticketr, &ticket); err != nil {
+					dErr = errors.Join(dErr, fmt.Errorf("bad ticket in discharge: %w", err))
+					continue dmLoop
+				}
+
+				if subtle.ConstantTimeCompare(vp.k, ticket.DischargeKey) != 1 {
+					dErr = errors.Join(dErr, errors.New("discharge key from ticket/VerifierKey mismatch"))
+					continue dmLoop
+				}
+
+				trustedDischarge = true
+				break trustLoop
+			}
+
+			dcavs, err := dm.verify(
+				vp.k,
+				nil, /* don't let them nest yet */
+				thisTokenBindingIds,
+				trustAttestations && trustedDischarge,
+				trusted3Ps,
+			)
+			if err != nil {
+				dErr = errors.Join(dErr, fmt.Errorf("macaroon verify: verify discharge: %w", err))
+				continue dmLoop
+			}
+
+			ret.Caveats = append(ret.Caveats, dcavs.Caveats...)
+			discharged = true
+			break dmLoop
 		}
 
-		ret.Caveats = append(ret.Caveats, dcavs.Caveats...)
+		if !discharged {
+			return nil, dErr
+		}
 	}
 
 	if m.Nonce.Proof {
