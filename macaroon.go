@@ -307,10 +307,25 @@ func (m *Macaroon) Encode() ([]byte, error) {
 // only allow this request to perform reads, not writes"). Those added
 // ordinary caveats WILL be returned from Verify.
 func (m *Macaroon) Verify(k SigningKey, discharges [][]byte, trusted3Ps map[string][]EncryptionKey) (*CaveatSet, error) {
-	return m.verify(k, discharges, nil, true, trusted3Ps)
+	dms := make([]*Macaroon, 0, len(discharges))
+	for _, d := range discharges {
+		dm, err := Decode(d)
+		if err != nil {
+			// ignore malformed discharges
+			continue
+		}
+
+		dms = append(dms, dm)
+	}
+
+	return m.VerifyParsed(k, dms, trusted3Ps)
 }
 
-func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingIds [][]byte, trustAttestations bool, trusted3Ps map[string][]EncryptionKey) (*CaveatSet, error) {
+func (m *Macaroon) VerifyParsed(k SigningKey, dms []*Macaroon, trusted3Ps map[string][]EncryptionKey) (*CaveatSet, error) {
+	return m.verify(k, dms, nil, true, trusted3Ps)
+}
+
+func (m *Macaroon) verify(k SigningKey, dms []*Macaroon, parentTokenBindingIds [][]byte, trustAttestations bool, trusted3Ps map[string][]EncryptionKey) (*CaveatSet, error) {
 	if m.Nonce.Proof && m.newProof {
 		return nil, errors.New("can't verify unfinalized proof")
 	}
@@ -319,15 +334,10 @@ func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingI
 		trusted3Ps = map[string][]EncryptionKey{}
 	}
 
-	dischargesByTicket := make(map[string][]*Macaroon, len(discharges))
-	for _, dBuf := range discharges {
-		decoded, err := Decode(dBuf)
-		if err != nil {
-			continue // ignore malformed discharges
-		}
-
-		skid := string(decoded.Nonce.KID)
-		dischargesByTicket[skid] = append(dischargesByTicket[skid], decoded)
+	dmsByTicket := make(map[string][]*Macaroon, len(dms))
+	for _, dm := range dms {
+		skid := string(dm.Nonce.KID)
+		dmsByTicket[skid] = append(dmsByTicket[skid], dm)
 	}
 
 	curMac := sign(k, m.Nonce.MustEncode())
@@ -339,13 +349,13 @@ func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingI
 		k SigningKey
 	}
 
-	dischargesToVerify := make([]*verifyParams, 0, len(dischargesByTicket))
+	dischargesToVerify := make([]*verifyParams, 0, len(dmsByTicket))
 	thisTokenBindingIds := [][]byte{digest(curMac)}
 
 	for _, c := range m.UnsafeCaveats.Caveats {
 		switch cav := c.(type) {
 		case *Caveat3P:
-			discharges, ok := dischargesByTicket[string(cav.Ticket)]
+			discharges, ok := dmsByTicket[string(cav.Ticket)]
 			if !ok {
 				return nil, errors.New("no matching discharge token")
 			}
