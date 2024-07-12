@@ -202,13 +202,8 @@ func (c *Client) undischargedTickets(tokenHeader string) (map[string][][]byte, e
 
 	ret := make(map[string][][]byte)
 	for _, perm := range perms {
-		tickets, err := perm.ThirdPartyTickets(disToks...)
-		if err != nil {
-			return nil, err
-		}
-
-		for loc, ticket := range tickets {
-			ret[loc] = append(ret[loc], ticket)
+		for loc, tickets := range perm.ThirdPartyTickets(disToks...) {
+			ret[loc] = append(ret[loc], tickets...)
 		}
 	}
 

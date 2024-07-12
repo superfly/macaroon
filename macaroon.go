@@ -550,7 +550,7 @@ func (m *Macaroon) Add3P(ka EncryptionKey, loc string, cs ...Caveat) error {
 }
 
 // ThirdPartyTickets extracts the encrypted tickets from a token's third party
-// caveats.
+// caveats. The return value maps 3p locations to tickets.
 //
 // The ticket of a third-party caveat is a little ticket embedded in the
 // caveat that is readable by the third-party service for which it's
@@ -565,38 +565,29 @@ func (m *Macaroon) Add3P(ka EncryptionKey, loc string, cs ...Caveat) error {
 // simple, though).
 //
 // Already-discharged caveats are excluded from the results.
-func (m *Macaroon) ThirdPartyTickets(existingDischarges ...[]byte) (map[string][]byte, error) {
-	ret := map[string][]byte{}
+func (m *Macaroon) ThirdPartyTickets(existingDischarges ...[]byte) map[string][][]byte {
+	ret := map[string][][]byte{}
 	dischargeTickets := make(map[string]struct{}, len(existingDischarges))
 
 	for _, ed := range existingDischarges {
 		if n, err := DecodeNonce(ed); err == nil {
-			dischargeTickets[hex.EncodeToString(n.KID)] = struct{}{}
+			dischargeTickets[string(n.KID)] = struct{}{}
 		}
 	}
 
 	for _, cav := range GetCaveats[*Caveat3P](&m.UnsafeCaveats) {
-		if _, exists := ret[cav.Location]; exists {
-			return nil, fmt.Errorf("extract third party caveats: duplicate locations: %s", cav.Location)
-		}
-
-		if _, discharged := dischargeTickets[hex.EncodeToString(cav.Ticket)]; !discharged {
-			ret[cav.Location] = cav.Ticket
+		if _, discharged := dischargeTickets[string(cav.Ticket)]; !discharged {
+			ret[cav.Location] = append(ret[cav.Location], cav.Ticket)
 		}
 	}
 
-	return ret, nil
+	return ret
 }
 
-// ThirdPartyTicket returns the ticket (see [Macaron.ThirdPartyTickets]) associated
+// TicketsForThirdParty returns the tickets (see [Macaron.ThirdPartyTickets]) associated
 // with a URL location, if possible.
-func (m *Macaroon) ThirdPartyTicket(location string, existingDischarges ...[]byte) ([]byte, error) {
-	tickets, err := m.ThirdPartyTickets(existingDischarges...)
-	if err != nil {
-		return nil, err
-	}
-
-	return tickets[location], nil
+func (m *Macaroon) TicketsForThirdParty(location string, existingDischarges ...[]byte) [][]byte {
+	return m.ThirdPartyTickets(existingDischarges...)[location]
 }
 
 // https://stackoverflow.com/questions/25065055/what-is-the-maximum-time-time-in-go

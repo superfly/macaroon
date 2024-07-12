@@ -19,14 +19,14 @@ type wireTicket struct {
 }
 
 // Checks the macaroon for a third party caveat for the specified location.
-// Returns the caveat's encrypted ticket, if found.
-func ThirdPartyTicket(encodedMacaroon []byte, thirdPartyLocation string) ([]byte, error) {
+// Returns the encrypted tickets for the caveats, if found.
+func TicketsForThirdParty(encodedMacaroon []byte, thirdPartyLocation string) ([][]byte, error) {
 	m, err := Decode(encodedMacaroon)
 	if err != nil {
 		return nil, err
 	}
 
-	return m.ThirdPartyTicket(thirdPartyLocation)
+	return m.TicketsForThirdParty(thirdPartyLocation), nil
 }
 
 // Decyrpts the ticket from the 3p caveat and prepares a discharge token. Returned
