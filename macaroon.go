@@ -616,3 +616,13 @@ func (m *Macaroon) String() (string, error) {
 
 	return encodeTokens(tok), nil
 }
+
+// Clone returns a deep copy of the Macaroon by serializing and re-parsing it.
+func (m *Macaroon) Clone() (*Macaroon, error) {
+	b, err := m.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	return Decode(b)
+}

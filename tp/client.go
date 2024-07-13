@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/superfly/macaroon"
-	"github.com/superfly/macaroon/internal/merr"
+	"github.com/superfly/macaroon/bundle"
 )
 
 type ClientOption func(*Client)
@@ -97,7 +97,9 @@ func WithPollingBackoff(nextBackoff func(lastBO time.Duration) (nextBO time.Dura
 // for the specified locations.
 func WithIgnoredThirdParties(tps ...string) ClientOption {
 	return func(c *Client) {
-		c.ignored = append(c.ignored, tps...)
+		for _, tp := range tps {
+			c.ignored = append(c.ignored, tp)
+		}
 	}
 }
 
@@ -132,7 +134,12 @@ func NewClient(firstPartyLocation string, opts ...ClientOption) *Client {
 }
 
 func (c *Client) NeedsDischarge(tokenHeader string) (bool, error) {
-	tickets, err := c.undischargedTickets(tokenHeader)
+	b, err := bundle.ParseBundle(c.firstPartyLocation, tokenHeader)
+	if err != nil {
+		return false, err
+	}
+
+	tickets, err := c.undischargedTickets(b)
 	if err != nil {
 		return false, err
 	}
@@ -141,7 +148,13 @@ func (c *Client) NeedsDischarge(tokenHeader string) (bool, error) {
 }
 
 func (c *Client) FetchDischargeTokens(ctx context.Context, tokenHeader string) (string, error) {
-	tickets, err := c.undischargedTickets(tokenHeader)
+	tokenHeader, stripped := macaroon.StripAuthorizationScheme(tokenHeader)
+	b, err := bundle.ParseBundle(c.firstPartyLocation, tokenHeader)
+	if err != nil {
+		return "", err
+	}
+
+	tickets, err := c.undischargedTickets(b)
 	if err != nil {
 		return "", err
 	}
@@ -160,9 +173,9 @@ func (c *Client) FetchDischargeTokens(ctx context.Context, tokenHeader string) (
 			// interaction.
 			if c.http.Jar != nil {
 				if dis, err := c.fetchDischargeToken(ctx, tpLoc, ticket); err != nil {
-					combinedErr = merr.Append(combinedErr, err)
+					combinedErr = errors.Join(combinedErr, err)
 				} else {
-					tokenHeader = tokenHeader + "," + dis
+					combinedErr = errors.Join(combinedErr, b.AddTokens(dis))
 				}
 			} else {
 				wg.Add(1)
@@ -175,9 +188,9 @@ func (c *Client) FetchDischargeTokens(ctx context.Context, tokenHeader string) (
 					defer m.Unlock()
 
 					if err != nil {
-						combinedErr = merr.Append(combinedErr, err)
+						combinedErr = errors.Join(combinedErr, err)
 					} else {
-						tokenHeader = tokenHeader + "," + dis
+						combinedErr = errors.Join(combinedErr, b.AddTokens(dis))
 					}
 				}(tpLoc, ticket)
 			}
@@ -186,32 +199,21 @@ func (c *Client) FetchDischargeTokens(ctx context.Context, tokenHeader string) (
 
 	wg.Wait()
 
-	return tokenHeader, combinedErr
+	if stripped {
+		return b.Header(), combinedErr
+	} else {
+		return b.String(), combinedErr
+	}
 }
 
-func (c *Client) undischargedTickets(tokenHeader string) (map[string][][]byte, error) {
-	toks, err := macaroon.Parse(tokenHeader)
-	if err != nil {
-		return nil, err
+func (c *Client) undischargedTickets(b *bundle.Bundle) (map[string][][]byte, error) {
+	tickets := b.UndischargedThirdPartyTickets()
+
+	for _, ignored := range c.ignored {
+		delete(tickets, ignored)
 	}
 
-	perms, _, _, disToks, err := macaroon.FindPermissionAndDischargeTokens(toks, c.firstPartyLocation)
-	if err != nil {
-		return nil, err
-	}
-
-	ret := make(map[string][][]byte)
-	for _, perm := range perms {
-		for loc, tickets := range perm.ThirdPartyTickets(disToks...) {
-			ret[loc] = append(ret[loc], tickets...)
-		}
-	}
-
-	for _, loc := range c.ignored {
-		delete(ret, loc)
-	}
-
-	return ret, nil
+	return tickets, nil
 }
 
 func (c *Client) fetchDischargeToken(ctx context.Context, thirdPartyLocation string, ticket []byte) (string, error) {

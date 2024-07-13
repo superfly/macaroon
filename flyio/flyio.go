@@ -7,9 +7,10 @@ import (
 
 const (
 	// well-known locations
-	LocationPermission     = "https://api.fly.io/v1"
-	LocationAuthentication = "https://api.fly.io/aaa/v1"
-	LocationSecrets        = "https://api.fly.io/secrets/v1"
+	LocationPermission        = "https://api.fly.io/v1"
+	LocationAuthentication    = "https://api.fly.io/aaa/v1"
+	LocationNewAuthentication = "https://auth.fly.io"
+	LocationSecrets           = "https://api.fly.io/secrets/v1"
 )
 
 // ParseRootAndDischargeTokens takes a string header and parses out the fly.io
