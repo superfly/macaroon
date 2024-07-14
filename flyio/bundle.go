@@ -10,12 +10,12 @@ var (
 )
 
 func IsForOrg(oid uint64) bundle.Predicate {
-	return bundle.Predicate(func(t bundle.Token) bool {
+	return bundle.MacaroonPredicate(func(t bundle.Macaroon) bool {
 		if !IsPermissionToken(t) {
 			return false
 		}
 
-		os, err := OrganizationScope(&t.(*bundle.MacaroonToken).UnsafeMacaroon.UnsafeCaveats)
+		os, err := OrganizationScope(t.UnsafeCaveats())
 		return err == nil && os == oid
 	})
 }

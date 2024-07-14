@@ -17,35 +17,35 @@ func (f filterFunc) Apply(ts []Token) []Token {
 	return f(ts)
 }
 
-// DefaultFilter rejects invalid macaroons and discharge tokens that aren't
+// DefaultFilter rejects malformed macaroons and discharge tokens that aren't
 // associated with any permission token.
-func DefaultFilter(permissionLocation string) Filter {
+func DefaultFilter(permLoc string) Filter {
 	return filterFunc(func(ts []Token) []Token {
-		ts = NotInvalidMacaroon.Apply(ts)
-
-		_, permsByDis, _, _ := tokens(ts).dischargeMaps(permissionLocation)
-		notExtraneous := Predicate(func(t Token) bool { return len(permsByDis[t.(*MacaroonToken)]) > 0 })
+		_, permsByDis, _, _ := tokens(ts).dischargeMaps(permLoc)
+		notExtraneous := MacaroonPredicate(func(t Macaroon) bool {
+			return len(permsByDis[t]) > 0
+		})
 
 		return Or(
-			NotMacaroon,
-			IsLocation(permissionLocation),
+			IsNotMacaroon,
+			IsLocation(permLoc),
 			notExtraneous,
 		).Apply(ts)
 	})
 }
 
-func isMissingDischarge(permissionLocation, tpLocation string) Filter {
-	isPerm := IsLocation(permissionLocation)
+func isMissingDischarge(permLoc, tpLocation string) Filter {
+	isPerm := IsLocation(permLoc)
 
 	return filterFunc(func(ts []Token) []Token {
-		_, _, dissByTicket, _ := tokens(ts).dischargeMaps(permissionLocation)
+		_, _, dissByTicket, _ := tokens(ts).dischargeMaps(permLoc)
 
 		pred := Predicate(func(t Token) bool {
 			if !isPerm(t) {
 				return false
 			}
 
-			for _, ticket := range t.(*MacaroonToken).UnsafeMacaroon.TicketsForThirdParty(tpLocation) {
+			for _, ticket := range t.(Macaroon).TicketsForThirdParty(tpLocation) {
 				if len(dissByTicket[string(ticket)]) == 0 {
 					return true
 				}
@@ -67,11 +67,11 @@ func withDischarges(permissionLocation string, f Filter) Filter {
 			switch {
 			case fMap[t]:
 				return true
-			case !IsValidMacaroon(t):
+			case !IsWellFormedMacaroon(t):
 				return false
 			}
 
-			for _, p := range permByDis[t.(*MacaroonToken)] {
+			for _, p := range permByDis[t.(Macaroon)] {
 				if fMap[p] {
 					return true
 				}
@@ -87,21 +87,26 @@ func withDischarges(permissionLocation string, f Filter) Filter {
 // Predicate is a type of Filter that returns a yes/no answer for each Token.
 type Predicate func(Token) bool
 
+// TypedPredicate returns a Predicate for a function operating on a concrete
+// Token type.
+func TypedPredicate[T Token](p func(T) bool) Predicate {
+	return And(isType[T], func(t Token) bool { return p(t.(T)) })
+}
+
 // IsLocation returns a Predicate that checking for macaroons with a given
 // location.
 func IsLocation(loc string) Predicate {
-	return func(t Token) bool {
-		return IsValidMacaroon(t) && t.(*MacaroonToken).UnsafeMacaroon.Location == loc
-	}
+	return MacaroonPredicate(func(m Macaroon) bool {
+		return m.Location() == loc
+	})
 }
 
 func HasCaveat[C macaroon.Caveat](t Token) bool {
-	if !IsValidMacaroon(t) {
-		return false
+	if m, ok := t.(Macaroon); ok {
+		return len(macaroon.GetCaveats[C](m.UnsafeCaveats())) != 0
 	}
 
-	cavs := macaroon.GetCaveats[C](&t.(*MacaroonToken).UnsafeMacaroon.UnsafeCaveats)
-	return len(cavs) != 0
+	return false
 }
 
 // And returns a Predicate requiring all of ps to be true.
@@ -161,11 +166,12 @@ func isType[T Token](t Token) bool {
 }
 
 var (
-	KeepAll            = Predicate(func(Token) bool { return true })
-	KeepNone           = Predicate(func(Token) bool { return false })
-	IsMacaroon         = Predicate(isType[*MacaroonToken])
-	NotMacaroon        = Not(IsMacaroon)
-	IsValidMacaroon    = Predicate(func(t Token) bool { return IsMacaroon(t) && t.(*MacaroonToken).Error == nil })
-	NotInvalidMacaroon = Or(NotMacaroon, IsValidMacaroon)
-	IsVerifiedMacaroon = Predicate(func(t Token) bool { return IsValidMacaroon(t) && t.(*MacaroonToken).VerifiedCaveats != nil })
+	KeepAll                = Predicate(func(Token) bool { return true })
+	KeepNone               = Predicate(func(Token) bool { return false })
+	IsNotMacaroon          = Predicate(isType[nonMacaroon])
+	IsMacaroon             = Not(IsNotMacaroon)
+	IsWellFormedMacaroon   = Predicate(isType[Macaroon])
+	IsNotMalformedMacaroon = Not(isType[*malformedMacaroon])
+	IsVerifiedMacaroon     = Predicate(isType[*verifiedMacaroon])
+	MacaroonPredicate      = TypedPredicate[Macaroon]
 )

@@ -27,17 +27,17 @@ func parseToks(hdr string) tokens {
 
 		pfx, b64, ok := strings.Cut(part, pfxDelim)
 		if !ok {
-			ts = append(ts, NonMacaroonToken(part))
+			ts = append(ts, nonMacaroon(part))
 			continue
 		}
 		if pfx != permissionTokenLabel && pfx != dischargeTokenLabel && pfx != v2TokenLabel {
-			ts = append(ts, NonMacaroonToken(part))
+			ts = append(ts, nonMacaroon(part))
 			continue
 		}
 
 		raw, err := base64.StdEncoding.DecodeString(b64)
 		if err != nil {
-			ts = append(ts, &MacaroonToken{
+			ts = append(ts, &malformedMacaroon{
 				Str:   part,
 				Error: fmt.Errorf("%w: bad base64: %w", macaroon.ErrUnrecognizedToken, err),
 			})
@@ -47,7 +47,7 @@ func parseToks(hdr string) tokens {
 
 		mac, err := macaroon.Decode(raw)
 		if err != nil {
-			ts = append(ts, &MacaroonToken{
+			ts = append(ts, &malformedMacaroon{
 				Str:   part,
 				Error: fmt.Errorf("bad macaroon: %w", err),
 			})
@@ -55,7 +55,7 @@ func parseToks(hdr string) tokens {
 			continue
 		}
 
-		ts = append(ts, &MacaroonToken{
+		ts = append(ts, &unverifiedMacaroon{
 			Str:            part,
 			UnsafeMacaroon: mac,
 		})
@@ -101,11 +101,16 @@ func (ts tokens) String() string {
 
 func (ts tokens) Error() error {
 	var merr error
+
 	for _, t := range ts {
-		if IsMacaroon(t) {
-			merr = errors.Join(merr, t.(*MacaroonToken).Error)
+		switch tt := t.(type) {
+		case *malformedMacaroon:
+			merr = errors.Join(merr, tt.Error)
+		case *invalidMacaroon:
+			merr = errors.Join(merr, tt.Error)
 		}
 	}
+
 	return merr
 
 }
@@ -122,26 +127,44 @@ func (ts tokens) Any(f Filter) bool {
 	return ts.Select(f).IsEmpty()
 }
 
-func (ts tokens) Verify(permissionLoc string, key macaroon.SigningKey, trusted3Ps map[string][]macaroon.EncryptionKey) {
-	var dms []*macaroon.Macaroon
+func (ts tokens) Verify(permLoc string, v Verifier) error {
+	var (
+		dissByPerm, _, _, _ = ts.dischargeMaps(permLoc)
+		res                 = v.Verify(dissByPerm)
+		verifiedSome        bool
+		merr                = errors.New("no verified tokens")
+	)
 
-	isPerm := IsLocation(permissionLoc)
-	dissByPerm, _, _, _ := ts.dischargeMaps(permissionLoc)
-
-	for _, t := range ts {
-		if !isPerm(t) {
+	for i, t := range ts {
+		m, ok := t.(Macaroon)
+		if !ok {
 			continue
 		}
 
-		mt := t.(*MacaroonToken)
-
-		dms = dms[:0]
-		for _, d := range dissByPerm[mt] {
-			dms = append(dms, d.UnsafeMacaroon)
+		resT, ok := res[m]
+		if !ok {
+			continue
 		}
 
-		mt.VerifiedCaveats, mt.Error = mt.UnsafeMacaroon.VerifyParsed(key, dms, trusted3Ps)
+		ts[i] = resT
+
+		switch tt := resT.(type) {
+		case *verifiedMacaroon:
+			verifiedSome = true
+		case *invalidMacaroon:
+			merr = errors.Join(merr,
+				fmt.Errorf("token %s: %w", tt.UnsafeMacaroon.Nonce.UUID(), tt.Error),
+			)
+		default:
+			return fmt.Errorf("unexpected verification result: %T", tt)
+		}
 	}
+
+	if verifiedSome {
+		return nil
+	}
+
+	return merr
 }
 
 func (ts tokens) Validate(accesses ...macaroon.Access) error {
@@ -152,10 +175,10 @@ func (ts tokens) Validate(accesses ...macaroon.Access) error {
 			continue
 		}
 
-		mt := t.(*MacaroonToken)
+		vm := t.(*verifiedMacaroon)
 
-		if err := mt.VerifiedCaveats.Validate(accesses...); err != nil {
-			merr = errors.Join(merr, fmt.Errorf("token %s: %w", mt.UnsafeMacaroon.Nonce.UUID(), err))
+		if err := vm.Caveats.Validate(accesses...); err != nil {
+			merr = errors.Join(merr, fmt.Errorf("token %s: %w", vm.UnsafeMacaroon.Nonce.UUID(), err))
 		} else {
 			return nil
 		}
@@ -173,15 +196,15 @@ func (ts tokens) UndischargedTicketsForThirdParty(permissionLocation string, tpL
 	return ts.UndischargedThirdPartyTickets(permissionLocation)[tpLocation]
 }
 
-// TicketCaveatValidator is a callback for validating caveats extracted from a
-// third-party ticket. These caveats are a restriction placed by the 1p on under
-// what conditions the 3p should issue a discharge. If there are caveats and the
-// 3p doesn't know how to deal with them, it should return an error. If the 3p
-// is willing to discharge the ticket, it should return the set of caveats to
-// add to the discharge macaroon.
-type TicketCaveatValidator func([]macaroon.Caveat) ([]macaroon.Caveat, error)
+// Discharger is a callback for validating caveats extracted from a third-party
+// ticket. These caveats are a restriction placed by the 1p on under what
+// conditions the 3p should issue a discharge. If there are caveats and the 3p
+// doesn't know how to deal with them, it should return an error. If the 3p is
+// willing to discharge the ticket, it should return the set of caveats to add
+// to the discharge macaroon.
+type Discharger func([]macaroon.Caveat) ([]macaroon.Caveat, error)
 
-func (ts *tokens) Discharge(permissionLocation, tpLocation string, tpKey macaroon.EncryptionKey, cb TicketCaveatValidator) error {
+func (ts *tokens) Discharge(permissionLocation, tpLocation string, tpKey macaroon.EncryptionKey, cb Discharger) error {
 	var (
 		merr                       error
 		newDiss                    []Token
@@ -215,12 +238,12 @@ func (ts *tokens) Discharge(permissionLocation, tpLocation string, tpKey macaroo
 				continue
 			}
 
-			dmt := &MacaroonToken{
+			dum := &unverifiedMacaroon{
 				Str:            dmStr,
 				UnsafeMacaroon: dm,
 			}
 
-			newDiss = append(newDiss, dmt)
+			newDiss = append(newDiss, dum)
 		}
 	}
 
@@ -235,8 +258,8 @@ func (ts *tokens) Discharge(permissionLocation, tpLocation string, tpKey macaroo
 
 func (ts tokens) Attenuate(permissionLocation string, caveats ...macaroon.Caveat) error {
 	type replacement struct {
-		mt  *MacaroonToken
-		m   *macaroon.Macaroon
+		m   Macaroon
+		mac *macaroon.Macaroon
 		vcs *macaroon.CaveatSet
 		str string
 	}
@@ -253,26 +276,27 @@ func (ts tokens) Attenuate(permissionLocation string, caveats ...macaroon.Caveat
 		}
 
 		var (
-			mt   = t.(*MacaroonToken)
-			uuid = mt.UnsafeMacaroon.Nonce.UUID()
-			r    = replacement{mt: mt}
-			err  error
+			m     = t.(Macaroon)
+			nonce = m.Nonce()
+			uuid  = nonce.UUID()
+			r     = replacement{m: m}
+			err   error
 		)
 
-		r.m, err = mt.UnsafeMacaroon.Clone()
+		r.mac, err = m.getUnsafeMacaroon().Clone()
 		if err != nil {
 			merr = errors.Join(merr, fmt.Errorf("clone token %s: %w", uuid, err))
 			continue
 		}
 
-		cavsBefore := r.m.UnsafeCaveats.Caveats
-		if err = r.m.Add(caveats...); err != nil {
+		cavsBefore := r.mac.UnsafeCaveats.Caveats
+		if err = r.mac.Add(caveats...); err != nil {
 			merr = errors.Join(merr, fmt.Errorf("attenuate token %s: %w", uuid, err))
 			continue
 		}
 
-		if mt.VerifiedCaveats != nil {
-			r.vcs, err = mt.VerifiedCaveats.Clone()
+		if vm, ok := t.(*verifiedMacaroon); ok {
+			r.vcs, err = vm.Caveats.Clone()
 			if err != nil {
 				merr = errors.Join(merr, fmt.Errorf("clone verified caveats %s: %w", uuid, err))
 				continue
@@ -281,11 +305,11 @@ func (ts tokens) Attenuate(permissionLocation string, caveats ...macaroon.Caveat
 			// m.Add() might skip duplicate caveats, so we figure out for
 			// ourselves which ones were added and put them in the
 			// VerifiedCaveats field.
-			added := r.m.UnsafeCaveats.Caveats[len(cavsBefore):]
+			added := r.mac.UnsafeCaveats.Caveats[len(cavsBefore):]
 			r.vcs.Caveats = append(r.vcs.Caveats, added...)
 		}
 
-		if r.str, err = r.m.String(); err != nil {
+		if r.str, err = r.mac.String(); err != nil {
 			merr = errors.Join(merr, fmt.Errorf("encode token %s: %w", uuid, err))
 			continue
 		}
@@ -298,13 +322,32 @@ func (ts tokens) Attenuate(permissionLocation string, caveats ...macaroon.Caveat
 	}
 
 	for _, r := range replacements {
-		r.mt.Str = r.str
-		r.mt.UnsafeMacaroon = r.m
-		r.mt.VerifiedCaveats = r.vcs
+		switch tt := r.m.(type) {
+		case *unverifiedMacaroon:
+			tt.Str = r.str
+			tt.UnsafeMacaroon = r.mac
+		case *verifiedMacaroon:
+			tt.Str = r.str
+			tt.UnsafeMacaroon = r.mac
+			tt.Caveats = r.vcs
+		case *invalidMacaroon:
+			tt.Str = r.str
+			tt.UnsafeMacaroon = r.mac
+		}
 	}
 
 	return nil
+}
 
+func (ts tokens) UnsafeMacaroons() []*macaroon.Macaroon {
+	var macs []*macaroon.Macaroon
+	for _, t := range ts {
+		if m, ok := t.(Macaroon); ok {
+			macs = append(macs, m.getUnsafeMacaroon())
+		}
+	}
+
+	return macs
 }
 
 // dischargesByPermission returns
@@ -312,11 +355,11 @@ func (ts tokens) Attenuate(permissionLocation string, caveats ...macaroon.Caveat
 //   - a map of discharge tokens to their permission tokens
 //   - a map of tickets to their discharge tokens
 //   - a map of undischarged tickets by 3p location.
-func (ts tokens) dischargeMaps(permissionLocation string) (dbp map[*MacaroonToken][]*MacaroonToken, pbd map[*MacaroonToken][]*MacaroonToken, dbt map[string][]*MacaroonToken, ubl map[string][][]byte) {
+func (ts tokens) dischargeMaps(permissionLocation string) (dbp map[Macaroon][]Macaroon, pbd map[Macaroon][]Macaroon, dbt map[string][]Macaroon, ubl map[string][][]byte) {
 	isPerm := IsLocation(permissionLocation)
 
 	// size is a guess
-	dbt = make(map[string][]*MacaroonToken, len(ts)/2)
+	dbt = make(map[string][]Macaroon, len(ts)/2)
 
 	var (
 		nPerm = 0
@@ -325,7 +368,7 @@ func (ts tokens) dischargeMaps(permissionLocation string) (dbp map[*MacaroonToke
 
 	for _, t := range ts {
 		switch {
-		case !IsValidMacaroon(t):
+		case !IsWellFormedMacaroon(t):
 			continue
 		case isPerm(t):
 			nPerm++
@@ -334,13 +377,13 @@ func (ts tokens) dischargeMaps(permissionLocation string) (dbp map[*MacaroonToke
 
 		nDiss++
 
-		mt := t.(*MacaroonToken)
-		skid := string(mt.UnsafeMacaroon.Nonce.KID)
-		dbt[skid] = append(dbt[skid], mt)
+		m := t.(Macaroon)
+		skid := string(m.Nonce().KID)
+		dbt[skid] = append(dbt[skid], m)
 	}
 
-	dbp = make(map[*MacaroonToken][]*MacaroonToken, nPerm)
-	pbd = make(map[*MacaroonToken][]*MacaroonToken, nDiss)
+	dbp = make(map[Macaroon][]Macaroon, nPerm)
+	pbd = make(map[Macaroon][]Macaroon, nDiss)
 	ubl = make(map[string][][]byte)
 
 	for _, t := range ts {
@@ -348,18 +391,18 @@ func (ts tokens) dischargeMaps(permissionLocation string) (dbp map[*MacaroonToke
 			continue
 		}
 
-		mt := t.(*MacaroonToken)
+		m := t.(Macaroon)
 
-		for tLoc, tickets := range mt.UnsafeMacaroon.ThirdPartyTickets() {
+		for tLoc, tickets := range m.ThirdPartyTickets() {
 			for _, ticket := range tickets {
 				diss := dbt[string(ticket)]
 				if len(diss) == 0 {
 					ubl[tLoc] = append(ubl[tLoc], ticket)
 				} else {
-					dbp[mt] = append(dbp[mt], diss...)
+					dbp[m] = append(dbp[m], diss...)
 
 					for _, d := range diss {
-						pbd[d] = append(pbd[d], mt)
+						pbd[d] = append(pbd[d], m)
 					}
 				}
 
@@ -374,10 +417,32 @@ type Token interface {
 	String() string
 }
 
-type MacaroonToken struct {
-	Str             string
-	Error           error
-	VerifiedCaveats *macaroon.CaveatSet
+type Macaroon interface {
+	Token
+
+	getUnverifiedMacaroon() *unverifiedMacaroon
+	getUnsafeMacaroon() *macaroon.Macaroon
+
+	// Location returns the location of this macaroon.
+	Location() string
+
+	// Nonce returns the nonce of this macaroon.
+	Nonce() macaroon.Nonce
+
+	// UnsafeCaveats returns the unverified caveats from this macaroon.
+	UnsafeCaveats() *macaroon.CaveatSet
+
+	// ThirdPartyTickets returns all third party tickets in this macaroon.
+	ThirdPartyTickets() map[string][][]byte
+
+	// TicketsForThirdParty returns the tickets for a given third party location.
+	TicketsForThirdParty(string) [][]byte
+}
+
+// unverifiedMacaroon is a WellFormedMacaroon that hasn't been verified yet.
+type unverifiedMacaroon struct {
+	// Str is the string representation of the token.
+	Str string
 
 	// UnsafeMacaroon is the macaroon.Macaroon that was parsed from Str. It is
 	// not safe to modify (e.g. attenuate) this Macaroon directly, since updates
@@ -387,13 +452,99 @@ type MacaroonToken struct {
 	UnsafeMacaroon *macaroon.Macaroon
 }
 
-var _ Token = (*MacaroonToken)(nil)
+var (
+	_ Token    = (*unverifiedMacaroon)(nil)
+	_ Macaroon = (*unverifiedMacaroon)(nil)
+)
 
 // implement Token
-func (t *MacaroonToken) String() string { return t.Str }
+func (t *unverifiedMacaroon) String() string { return t.Str }
 
-type NonMacaroonToken string
+// implement WellFormedMacaroon
+func (t *unverifiedMacaroon) getUnverifiedMacaroon() *unverifiedMacaroon { return t }
+func (t *unverifiedMacaroon) getUnsafeMacaroon() *macaroon.Macaroon      { return t.UnsafeMacaroon }
+func (t *unverifiedMacaroon) Location() string                           { return t.UnsafeMacaroon.Location }
+func (t *unverifiedMacaroon) Nonce() macaroon.Nonce                      { return t.UnsafeMacaroon.Nonce }
 
-var _ Token = NonMacaroonToken("")
+func (t *unverifiedMacaroon) UnsafeCaveats() *macaroon.CaveatSet {
+	return &t.UnsafeMacaroon.UnsafeCaveats
+}
 
-func (t NonMacaroonToken) String() string { return string(t) }
+func (t *unverifiedMacaroon) ThirdPartyTickets() map[string][][]byte {
+	return t.UnsafeMacaroon.ThirdPartyTickets()
+}
+
+func (t *unverifiedMacaroon) TicketsForThirdParty(loc string) [][]byte {
+	return t.UnsafeMacaroon.TicketsForThirdParty(loc)
+}
+
+// verifiedMacaroon is a WellFormedMacaroon that passed signature verification.
+type verifiedMacaroon struct {
+	*unverifiedMacaroon
+
+	// Caveats is the set of verified caveats.
+	Caveats *macaroon.CaveatSet
+}
+
+// VerifiedMacaroon returns a WellFormedMacaroon annotated with verified caveats.
+func VerifiedMacaroon(m Macaroon, cavs *macaroon.CaveatSet) VerificationResult {
+	return &verifiedMacaroon{
+		unverifiedMacaroon: m.getUnverifiedMacaroon(),
+		Caveats:            cavs,
+	}
+}
+
+var (
+	_ Token              = (*verifiedMacaroon)(nil)
+	_ Macaroon           = (*verifiedMacaroon)(nil)
+	_ VerificationResult = (*verifiedMacaroon)(nil)
+)
+
+// implement VerificationResult
+func (t *verifiedMacaroon) isVerificationResult() {}
+
+// invalidMacaroon is a WellFormedMacaroon that failed signature verification.
+type invalidMacaroon struct {
+	*unverifiedMacaroon
+
+	// Error is the error that occurred while verifying the token.
+	Error error
+}
+
+// InvalidMacaroon returns a WellFormedMacaroon annotated with a verification error.
+func InvalidMacaroon(m Macaroon, err error) VerificationResult {
+	return &invalidMacaroon{
+		unverifiedMacaroon: m.getUnverifiedMacaroon(),
+		Error:              err,
+	}
+}
+
+var (
+	_ Token              = (*invalidMacaroon)(nil)
+	_ Macaroon           = (*invalidMacaroon)(nil)
+	_ VerificationResult = (*invalidMacaroon)(nil)
+)
+
+// implement VerificationResult
+func (t *invalidMacaroon) isVerificationResult() {}
+
+// malformedMacaroon is a token that looked like a macaroon, but couldn't be parsed.
+type malformedMacaroon struct {
+	// Str is the string representation of the token.
+	Str string
+
+	// Error is the error that occurred while parsing the token.
+	Error error
+}
+
+var _ Token = (*malformedMacaroon)(nil)
+
+// implement Token
+func (t *malformedMacaroon) String() string { return t.Str }
+
+// nonMacaroon is a token that doesn't look like a macaroon.
+type nonMacaroon string
+
+var _ Token = nonMacaroon("")
+
+func (t nonMacaroon) String() string { return string(t) }

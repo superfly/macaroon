@@ -37,14 +37,10 @@ func ParseBundle(permissionLocation, hdr string) (*Bundle, error) {
 // before the tokens are filtered and will contain information about invalid
 // tokens that may be filtered.
 func ParseBundleWithFilter(permissionLocation, hdr string, filter Filter) (*Bundle, error) {
-	ts := parseToks(hdr)
-
-	var merr error
-	for _, t := range ts {
-		if IsMacaroon(t) {
-			merr = errors.Join(merr, t.(*MacaroonToken).Error)
-		}
-	}
+	var (
+		ts  = parseToks(hdr)
+		err = ts.Error()
+	)
 
 	b := &Bundle{
 		m:       new(sync.RWMutex),
@@ -52,7 +48,7 @@ func ParseBundleWithFilter(permissionLocation, hdr string, filter Filter) (*Bund
 		ts:      filter.Apply(ts),
 	}
 
-	return b, merr
+	return b, err
 }
 
 // PermissionTokenNonces returns the nonces of all permission tokens in the
@@ -68,7 +64,7 @@ func (b *Bundle) PermissionTokenNonces() []macaroon.Nonce {
 
 	for _, t := range b.ts {
 		if isPerm(t) {
-			ret = append(ret, t.(*MacaroonToken).UnsafeMacaroon.Nonce)
+			ret = append(ret, t.(Macaroon).Nonce())
 		}
 	}
 
@@ -85,21 +81,17 @@ func (b *Bundle) AddTokens(hdr string) error {
 // before the tokens are filtered and will contain information about invalid
 // tokens that may be filtered.
 func (b *Bundle) AddTokensWithFilter(hdr string, filter Filter) error {
-	ts := parseToks(hdr)
-
-	var merr error
-	for _, t := range ts {
-		if IsMacaroon(t) {
-			merr = errors.Join(merr, t.(*MacaroonToken).Error)
-		}
-	}
+	var (
+		ts  = parseToks(hdr)
+		err = ts.Error()
+	)
 
 	b.m.Lock()
 	defer b.m.Unlock()
 
 	b.ts = filter.Apply(append(b.ts, ts...))
 
-	return merr
+	return err
 }
 
 // Select returns a new Bundle containing only the tokens matching the filter. The
@@ -184,17 +176,20 @@ func (b *Bundle) Any(f Filter) bool {
 	return !b.ts.Select(f).IsEmpty()
 }
 
-// TODO: have this return an error
-//
-// Verify attempts to verify the signature of each macaroon in the Bundle.
-// Successfully verified macaroons will be updated to contain the set of
-// verified caveats. Unsuccessfully verified tokens will be annotated with their
+// Count returns the number of tokens in the Bundle that match the filter.
+func (b *Bundle) Count(f Filter) int {
+	return b.ts.Select(f).N()
+}
+
+// Verify attempts to verify the signature of every macaroon in the Bundle.
+// Successfully verified macaroons will be the subject for future [Validate]
+// calls. Unsuccessfully verified tokens will be annotated with their
 // error, which can be checked with the Error method.
-func (b *Bundle) Verify(key macaroon.SigningKey, trusted3Ps map[string][]macaroon.EncryptionKey) {
+func (b *Bundle) Verify(v Verifier) error {
 	b.m.Lock()
 	defer b.m.Unlock()
 
-	b.ts.Verify(b.permLoc, key, trusted3Ps)
+	return b.ts.Verify(b.permLoc, v)
 }
 
 // Validate attempts to validate the provided accesses against all verified
@@ -228,7 +223,7 @@ func (b *Bundle) UndischargedTicketsForThirdParty(tpLocation string) [][]byte {
 // Discharge attempts to discharge any third-party caveats for tpLocation. The
 // provided callback (cb) is invoked to validate any caveats in tickets and to
 // provide discharge macaroons.
-func (b *Bundle) Discharge(tpLocation string, tpKey macaroon.EncryptionKey, cb TicketCaveatValidator) error {
+func (b *Bundle) Discharge(tpLocation string, tpKey macaroon.EncryptionKey, cb Discharger) error {
 	b.m.Lock()
 	defer b.m.Unlock()
 
@@ -246,6 +241,16 @@ func (b *Bundle) Attenuate(caveats ...macaroon.Caveat) error {
 	defer b.m.Unlock()
 
 	return b.ts.Attenuate(b.permLoc, caveats...)
+}
+
+// UnsafeMacaroons returns the macaroons from the Bundle. These are not safe to
+// access/modify if another goroutine might be using the Bundle. Modifications
+// to the Bundle might result in changes in the returned Macaroons.
+func (b *Bundle) UnsafeMacaroons() []*macaroon.Macaroon {
+	b.m.RLock()
+	defer b.m.RUnlock()
+
+	return b.ts.UnsafeMacaroons()
 }
 
 // Clone returns a deep copy of the Bundle by serializing and re-parsing it.
