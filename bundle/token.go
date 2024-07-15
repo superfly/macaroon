@@ -473,7 +473,7 @@ func (t *unverifiedMacaroon) UnsafeCaveats() *macaroon.CaveatSet {
 }
 
 func (t *unverifiedMacaroon) ThirdPartyTickets() map[string][][]byte {
-	return t.UnsafeMacaroon.ThirdPartyTickets()
+	return t.UnsafeMacaroon.AllThirdPartyTickets()
 }
 
 func (t *unverifiedMacaroon) TicketsForThirdParty(loc string) [][]byte {

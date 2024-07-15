@@ -549,7 +549,7 @@ func (m *Macaroon) Add3P(ka EncryptionKey, loc string, cs ...Caveat) error {
 	return nil
 }
 
-// ThirdPartyTickets extracts the encrypted tickets from a token's third party
+// AllThirdPartyTickets extracts the encrypted tickets from a token's third party
 // caveats. The return value maps 3p locations to tickets.
 //
 // The ticket of a third-party caveat is a little ticket embedded in the
@@ -558,14 +558,14 @@ func (m *Macaroon) Add3P(ka EncryptionKey, loc string, cs ...Caveat) error {
 // token to satisfy the caveat.
 //
 // Macaroon services of all types are identified by their "location",
-// which in our scheme is always a URL. ThirdPartyTickets returns a map
+// which in our scheme is always a URL. AllThirdPartyTickets returns a map
 // of location to ticket. In a perfect world, you could iterate over this
 // map hitting each URL and passing it the associated ticket, collecting
 // all the discharge tokens you need for the request (it is never that
 // simple, though).
 //
 // Already-discharged caveats are excluded from the results.
-func (m *Macaroon) ThirdPartyTickets(existingDischarges ...[]byte) map[string][][]byte {
+func (m *Macaroon) AllThirdPartyTickets(existingDischarges ...[]byte) map[string][][]byte {
 	ret := map[string][][]byte{}
 	dischargeTickets := make(map[string]struct{}, len(existingDischarges))
 
@@ -587,7 +587,33 @@ func (m *Macaroon) ThirdPartyTickets(existingDischarges ...[]byte) map[string][]
 // TicketsForThirdParty returns the tickets (see [Macaron.ThirdPartyTickets]) associated
 // with a URL location, if possible.
 func (m *Macaroon) TicketsForThirdParty(location string, existingDischarges ...[]byte) [][]byte {
-	return m.ThirdPartyTickets(existingDischarges...)[location]
+	return m.AllThirdPartyTickets(existingDischarges...)[location]
+}
+
+// DEPRECATED: use AllThirdPartyTickets. This will be removed in the next major version.
+func (m *Macaroon) ThirdPartyTickets(existingDischarges ...[]byte) (map[string][]byte, error) {
+	tps := m.AllThirdPartyTickets(existingDischarges...)
+	ret := make(map[string][]byte, len(tps))
+
+	for loc, tickets := range tps {
+		if len(tickets) != 1 {
+			return nil, fmt.Errorf("extract third party caveats: duplicate locations: %s", loc)
+		}
+
+		ret[loc] = tickets[0]
+	}
+
+	return ret, nil
+}
+
+// DEPRECATED: use TicketsForThirdParty. This will be removed in the next major version.
+func (m *Macaroon) ThirdPartyTicket(location string, existingDischarges ...[]byte) ([]byte, error) {
+	tps, err := m.ThirdPartyTickets(existingDischarges...)
+	if err != nil {
+		return nil, err
+	}
+
+	return tps[location], nil
 }
 
 // https://stackoverflow.com/questions/25065055/what-is-the-maximum-time-time-in-go

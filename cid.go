@@ -29,6 +29,16 @@ func TicketsForThirdParty(encodedMacaroon []byte, thirdPartyLocation string) ([]
 	return m.TicketsForThirdParty(thirdPartyLocation), nil
 }
 
+// DEPRECATED: Use TicketsForThirdParty instead. This will be removed in the next major version.
+func ThirdPartyTicket(encodedMacaroon []byte, thirdPartyLocation string) ([]byte, error) {
+	m, err := Decode(encodedMacaroon)
+	if err != nil {
+		return nil, err
+	}
+
+	return m.ThirdPartyTicket(thirdPartyLocation)
+}
+
 // Decyrpts the ticket from the 3p caveat and prepares a discharge token. Returned
 // caveats, if any, must be validated before issuing the discharge token to the
 // user.
