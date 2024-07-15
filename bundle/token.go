@@ -392,8 +392,10 @@ func (ts tokens) dischargeMaps(permissionLocation string) (dbp map[Macaroon][]Ma
 		}
 
 		m := t.(Macaroon)
+		tpts := m.ThirdPartyTickets()
+		dbp[m] = make([]Macaroon, 0, len(tpts))
 
-		for tLoc, tickets := range m.ThirdPartyTickets() {
+		for tLoc, tickets := range tpts {
 			for _, ticket := range tickets {
 				diss := dbt[string(ticket)]
 				if len(diss) == 0 {
