@@ -1,15 +1,22 @@
 package flyio
 
-import "github.com/superfly/macaroon/bundle"
-
-var (
-	IsPermissionToken = bundle.IsLocation(LocationPermission)
-	IsAuthToken       = bundle.IsLocation(LocationAuthentication)
-	IsNewAuthToken    = bundle.IsLocation(LocationNewAuthentication)
-	IsSecretsToken    = bundle.IsLocation(LocationSecrets)
+import (
+	"github.com/superfly/macaroon/bundle"
+	"github.com/superfly/macaroon/resset"
 )
 
-func IsForOrg(oid uint64) bundle.Predicate {
+var (
+	IsPermissionToken = bundle.IsLocation(LocationPermission).Predicate()
+	IsAuthToken       = bundle.IsLocation(LocationAuthentication).Predicate()
+	IsNewAuthToken    = bundle.IsLocation(LocationNewAuthentication).Predicate()
+	IsSecretsToken    = bundle.IsLocation(LocationSecrets).Predicate()
+)
+
+// IsForOrgUnverified returns a Predicate, checking that the token is scoped to
+// the given organization. Because this operates on unverified tokens, it
+// doesn't imply any level of access to the org or that the selected tokens are
+// valid.
+func IsForOrgUnverified(oid uint64) bundle.Predicate {
 	return bundle.MacaroonPredicate(func(t bundle.Macaroon) bool {
 		if !IsPermissionToken(t) {
 			return false
@@ -17,6 +24,16 @@ func IsForOrg(oid uint64) bundle.Predicate {
 
 		os, err := OrganizationScope(t.UnsafeCaveats())
 		return err == nil && os == oid
+	})
+}
+
+// IsForOrg returns a Predicate, checking that the token is scoped to the given
+// organization. This doesn't imply any specific level of access to the
+// organization.
+func IsForOrg(orgID uint64) bundle.Predicate {
+	return bundle.AllowsAccess(&Access{
+		OrgID:  &orgID,
+		Action: resset.ActionNone,
 	})
 }
 

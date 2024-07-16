@@ -19,26 +19,25 @@ func (f filterFunc) Apply(ts []Token) []Token {
 
 // DefaultFilter rejects malformed macaroons and discharge tokens that aren't
 // associated with any permission token.
-func DefaultFilter(permLoc string) Filter {
+func DefaultFilter(isPerm Predicate) Filter {
 	return filterFunc(func(ts []Token) []Token {
-		_, permsByDis, _, _ := tokens(ts).dischargeMaps(permLoc)
+		pbd := tokens(ts).permissionsByDischarge(isPerm)
+
 		notExtraneous := MacaroonPredicate(func(t Macaroon) bool {
-			return len(permsByDis[t]) > 0
+			return len(pbd[t]) > 0
 		})
 
 		return Or(
 			IsNotMacaroon,
-			IsLocation(permLoc),
+			isPerm,
 			notExtraneous,
 		).Apply(ts)
 	})
 }
 
-func isMissingDischarge(permLoc, tpLocation string) Filter {
-	isPerm := IsLocation(permLoc)
-
+func isMissingDischarge(isPerm Predicate, tpLocation string) Filter {
 	return filterFunc(func(ts []Token) []Token {
-		_, _, dissByTicket, _ := tokens(ts).dischargeMaps(permLoc)
+		dbt, _, _ := tokens(ts).dischargesByTicket(isPerm)
 
 		pred := Predicate(func(t Token) bool {
 			if !isPerm(t) {
@@ -46,7 +45,7 @@ func isMissingDischarge(permLoc, tpLocation string) Filter {
 			}
 
 			for _, ticket := range t.(Macaroon).TicketsForThirdParty(tpLocation) {
-				if len(dissByTicket[string(ticket)]) == 0 {
+				if len(dbt[string(ticket)]) == 0 {
 					return true
 				}
 			}
@@ -58,10 +57,15 @@ func isMissingDischarge(permLoc, tpLocation string) Filter {
 	})
 }
 
-func withDischarges(permissionLocation string, f Filter) Filter {
+func withDischarges(isPerm Predicate, f Filter) Filter {
 	return filterFunc(func(ts []Token) []Token {
-		fMap := tokens(ts).Select(f).existenceMap()
-		_, permByDis, _, _ := tokens(ts).dischargeMaps(permissionLocation)
+		filtered := tokens(ts).Select(f)
+		fMap := make(map[Token]bool, len(filtered))
+		for _, t := range filtered {
+			fMap[t] = true
+		}
+
+		pbd := tokens(ts).permissionsByDischarge(isPerm)
 
 		pred := Predicate(func(t Token) bool {
 			switch {
@@ -71,7 +75,7 @@ func withDischarges(permissionLocation string, f Filter) Filter {
 				return false
 			}
 
-			for _, p := range permByDis[t.(Macaroon)] {
+			for _, p := range pbd[t.(Macaroon)] {
 				if fMap[p] {
 					return true
 				}
@@ -91,14 +95,6 @@ type Predicate func(Token) bool
 // Token type.
 func TypedPredicate[T Token](p func(T) bool) Predicate {
 	return And(isType[T], func(t Token) bool { return p(t.(T)) })
-}
-
-// IsLocation returns a Predicate that checking for macaroons with a given
-// location.
-func IsLocation(loc string) Predicate {
-	return MacaroonPredicate(func(m Macaroon) bool {
-		return m.Location() == loc
-	})
 }
 
 func HasCaveat[C macaroon.Caveat](t Token) bool {
@@ -142,6 +138,14 @@ func Not(p Predicate) Predicate {
 	}
 }
 
+// AllowsAccess returns a Predicate that selects verified macaroons allowing the
+// given accesses.
+func AllowsAccess(accesses ...macaroon.Access) Predicate {
+	return VerifiedMacaroonPredicate(func(vm *VerifiedMacaroon) bool {
+		return vm.Caveats.Validate(accesses...) == nil
+	})
+}
+
 // Apply implements Filter.
 func (p Predicate) Apply(ts []Token) []Token {
 	ret := ts[:0]
@@ -166,12 +170,25 @@ func isType[T Token](t Token) bool {
 }
 
 var (
-	KeepAll                = Predicate(func(Token) bool { return true })
-	KeepNone               = Predicate(func(Token) bool { return false })
-	IsNotMacaroon          = Predicate(isType[nonMacaroon])
-	IsMacaroon             = Not(IsNotMacaroon)
-	IsWellFormedMacaroon   = Predicate(isType[Macaroon])
-	IsNotMalformedMacaroon = Not(isType[*malformedMacaroon])
-	IsVerifiedMacaroon     = Predicate(isType[*verifiedMacaroon])
-	MacaroonPredicate      = TypedPredicate[Macaroon]
+	KeepAll                   = Predicate(func(Token) bool { return true })
+	KeepNone                  = Predicate(func(Token) bool { return false })
+	IsNotMacaroon             = Predicate(isType[NonMacaroon])
+	IsMacaroon                = Not(IsNotMacaroon)
+	IsWellFormedMacaroon      = Predicate(isType[Macaroon])
+	IsNotMalformedMacaroon    = Not(isType[*MalformedMacaroon])
+	IsVerifiedMacaroon        = Predicate(isType[*VerifiedMacaroon])
+	MacaroonPredicate         = TypedPredicate[Macaroon]
+	VerifiedMacaroonPredicate = TypedPredicate[*VerifiedMacaroon]
 )
+
+type IsLocation string
+
+func (l IsLocation) Apply(ts []Token) []Token {
+	return l.Predicate().Apply(ts)
+}
+
+func (l IsLocation) Predicate() Predicate {
+	return MacaroonPredicate(func(m Macaroon) bool {
+		return m.Location() == string(l)
+	})
+}
