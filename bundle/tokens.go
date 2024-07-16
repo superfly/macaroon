@@ -68,11 +68,27 @@ func (ts tokens) Select(f Filter) tokens {
 	return f.Apply(append(tokens(nil), ts...))
 }
 
+func (ts tokens) Header() string {
+	return Header(ts...)
+}
+
 func Header[T Token](ts ...T) string {
+	if len(ts) == 0 {
+		return ""
+	}
+
 	return flyV1Scheme + " " + String(ts...)
 }
 
+func (ts tokens) String() string {
+	return String(ts...)
+}
+
 func String[T Token](ts ...T) string {
+	if len(ts) == 0 {
+		return ""
+	}
+
 	var sb strings.Builder
 
 	l := len(ts) - 1

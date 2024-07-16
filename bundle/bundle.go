@@ -107,7 +107,7 @@ func (b *Bundle) Header() string {
 	b.m.RLock()
 	defer b.m.RUnlock()
 
-	return Header(b.ts...)
+	return b.ts.Header()
 }
 
 // String returns the string representation of the Bundle.
@@ -115,7 +115,7 @@ func (b *Bundle) String() string {
 	b.m.RLock()
 	defer b.m.RUnlock()
 
-	return String(b.ts...)
+	return b.ts.String()
 }
 
 // Error returns the combined errors from all macaroons in the Bundle. These
@@ -153,6 +153,17 @@ func (b *Bundle) Any(f Filter) bool {
 
 // Count returns the number of tokens in the Bundle that match the filter.
 func (b *Bundle) Count(f Filter) int {
+	// avoid copying the slice if the filter is a Predicate
+	if pred, ok := f.(Predicate); ok {
+		return Reduce(b, func(count int, t Token) int {
+			if pred(t) {
+				return count + 1
+			}
+
+			return count
+		})
+	}
+
 	return len(b.ts.Select(f))
 }
 
