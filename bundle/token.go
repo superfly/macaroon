@@ -1,6 +1,8 @@
 package bundle
 
 import (
+	"time"
+
 	"github.com/superfly/macaroon"
 )
 
@@ -8,13 +10,13 @@ type Token interface {
 	String() string
 }
 
-// BadToken is an InvalidMacaroon or MalformedMacaroon.
+// BadToken is an FailedMacaroon or MalformedMacaroon.
 type BadToken interface {
 	Token
 	Error() error
 }
 
-// Macaroon is a UnverifiedMacaroon, VerifiedMacaroon, or InvalidMacaroon.
+// Macaroon is a UnverifiedMacaroon, VerifiedMacaroon, or FailedMacaroon.
 type Macaroon interface {
 	Token
 
@@ -96,29 +98,45 @@ var (
 	_ VerificationResult = (*VerifiedMacaroon)(nil)
 )
 
+// https://stackoverflow.com/questions/25065055/what-is-the-maximum-time-time-in-go
+var maxTime = time.Unix(1<<63-62135596801, 999999999)
+
+// Expiration calculates when this macaroon will expire
+func (t *VerifiedMacaroon) Expiration() time.Time {
+	ret := maxTime
+
+	for _, vw := range macaroon.GetCaveats[*macaroon.ValidityWindow](t.Caveats) {
+		if na := time.Unix(vw.NotAfter, 0); na.Before(ret) {
+			ret = na
+		}
+	}
+
+	return ret
+}
+
 // implement VerificationResult
 func (t *VerifiedMacaroon) isVerificationResult() {}
 
-// InvalidMacaroon is a Macaroon that failed signature verification.
-type InvalidMacaroon struct {
+// FailedMacaroon is a Macaroon that failed signature verification.
+type FailedMacaroon struct {
 	*UnverifiedMacaroon
 
 	// Error is the error that occurred while verifying the token.
-	err error
+	Err error
 }
 
 var (
-	_ Token              = (*InvalidMacaroon)(nil)
-	_ Macaroon           = (*InvalidMacaroon)(nil)
-	_ VerificationResult = (*InvalidMacaroon)(nil)
+	_ Token              = (*FailedMacaroon)(nil)
+	_ Macaroon           = (*FailedMacaroon)(nil)
+	_ VerificationResult = (*FailedMacaroon)(nil)
 )
 
-func (m *InvalidMacaroon) Error() error {
-	return m.err
+func (m *FailedMacaroon) Error() error {
+	return m.Err
 }
 
 // implement VerificationResult
-func (t *InvalidMacaroon) isVerificationResult() {}
+func (t *FailedMacaroon) isVerificationResult() {}
 
 // MalformedMacaroon is a token that looked like a macaroon, but couldn't be parsed.
 type MalformedMacaroon struct {

@@ -127,9 +127,9 @@ func (ts tokens) Verify(ctx context.Context, isPerm Predicate, v Verifier) ([]*m
 		switch tt := resT.(type) {
 		case *VerifiedMacaroon:
 			verified = append(verified, tt.Caveats)
-		case *InvalidMacaroon:
+		case *FailedMacaroon:
 			merr = errors.Join(merr,
-				fmt.Errorf("token %s: %w", tt.UnsafeMac.Nonce.UUID(), tt.err),
+				fmt.Errorf("token %s: %w", tt.UnsafeMac.Nonce.UUID(), tt.Err),
 			)
 		default:
 			return nil, fmt.Errorf("unexpected verification result: %T", tt)
@@ -288,7 +288,7 @@ func (ts tokens) Attenuate(isPerm Predicate, caveats ...macaroon.Caveat) error {
 			tt.Str = r.str
 			tt.UnsafeMac = r.mac
 			tt.Caveats = r.vcs
-		case *InvalidMacaroon:
+		case *FailedMacaroon:
 			tt.Str = r.str
 			tt.UnsafeMac = r.mac
 		}

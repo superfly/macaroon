@@ -3,11 +3,13 @@ package bundle
 import (
 	"context"
 	"fmt"
+	"time"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/superfly/macaroon"
 )
 
-// VerificationResult is a VerifiedMacaroon or InvalidMacaroon.
+// VerificationResult is a VerifiedMacaroon or FailedMacaroon.
 type VerificationResult interface {
 	Macaroon
 	isVerificationResult()
@@ -18,7 +20,7 @@ type Verifier interface {
 	// Verify does the work of verifying a map of macaroons. It takes a mapping
 	// of permission tokens to their potential discharge tokens. It returns a
 	// mapping from permission to verification results (either VerifiedMacaroon
-	// or InvalidMacaroon).
+	// or FailedMacaroon).
 	Verify(ctx context.Context, dischargesByPermission map[Macaroon][]Macaroon) map[Macaroon]VerificationResult
 }
 
@@ -51,7 +53,7 @@ func (kr KeyResolver) Verify(ctx context.Context, dissByPerm map[Macaroon][]Maca
 	for perm, diss := range dissByPerm {
 		key, trustedTPs, err := kr(ctx, perm.Nonce())
 		if err != nil {
-			ret[perm] = &InvalidMacaroon{perm.Unverified(), err}
+			ret[perm] = &FailedMacaroon{perm.Unverified(), err}
 			continue
 		}
 
@@ -61,11 +63,72 @@ func (kr KeyResolver) Verify(ctx context.Context, dissByPerm map[Macaroon][]Maca
 		}
 
 		if cavs, err := perm.UnsafeMacaroon().VerifyParsed(key, disMacs, trustedTPs); err != nil {
-			ret[perm] = &InvalidMacaroon{perm.Unverified(), err}
+			ret[perm] = &FailedMacaroon{perm.Unverified(), err}
 		} else {
 			ret[perm] = &VerifiedMacaroon{perm.Unverified(), cavs}
 		}
 	}
 
 	return ret
+}
+
+// VerificationCache is a Verifier that caches successful verification results.
+type VerificationCache struct {
+	verifier Verifier
+	ttl      time.Duration
+	cache    *lru.Cache[string, *cacheEntry]
+}
+
+func NewVerificationCache(verifier Verifier, ttl time.Duration, size int) *VerificationCache {
+	cache, err := lru.New[string, *cacheEntry](size)
+	if err != nil {
+		panic(err)
+	}
+
+	return &VerificationCache{
+		verifier: verifier,
+		ttl:      ttl,
+		cache:    cache,
+	}
+}
+
+type cacheEntry struct {
+	vm         *VerifiedMacaroon
+	expiration time.Time
+}
+
+func (vc *VerificationCache) Verify(ctx context.Context, dissByPerm map[Macaroon][]Macaroon) map[Macaroon]VerificationResult {
+	ret := make(map[Macaroon]VerificationResult, len(dissByPerm))
+	hdrByPerm := make(map[Macaroon]string)
+
+	for perm, diss := range dissByPerm {
+		hdr := String(append(diss, perm)...)
+
+		if v, ok := vc.cache.Get(hdr); ok && v.expiration.After(time.Now()) {
+			ret[perm] = v.vm
+			delete(dissByPerm, perm)
+		} else {
+			dissByPerm[perm] = diss
+			hdrByPerm[perm] = hdr
+		}
+	}
+
+	for perm, res := range vc.verifier.Verify(ctx, dissByPerm) {
+		ret[perm] = res
+
+		if vm, ok := res.(*VerifiedMacaroon); ok {
+			exp := time.Now().Add(vc.ttl)
+			if texp := vm.Expiration(); texp.Before(texp) {
+				exp = texp
+			}
+
+			vc.cache.Add(hdrByPerm[perm], &cacheEntry{vm, exp})
+		}
+	}
+
+	return ret
+}
+
+func (vc *VerificationCache) Purge() {
+	vc.cache.Purge()
 }
