@@ -23,6 +23,7 @@ const (
 	CavNoAdminFeatures   = macaroon.CavNoAdminFeatures
 	CavCommands          = macaroon.CavFlyioCommands
 	CavAppFeatureSet     = macaroon.CavFlyioAppFeatureSet
+	CavStorageObjects    = macaroon.CavFlyioStorageObjects
 )
 
 type FromMachine struct {
@@ -382,4 +383,28 @@ func (c *AppFeatureSet) Prohibits(a macaroon.Access) error {
 		return fmt.Errorf("%w: access isnt AppFeatureGetter", macaroon.ErrInvalidAccess)
 	}
 	return c.Features.Prohibits(f.GetAppFeature(), f.GetAction())
+}
+
+// StorageObjects limits what storage objects can be accessed. Objects are
+// identified by a URL prefix string, so you can specify just the storage
+// provider (e.g. `https://storage.fly/`), a specific bucket within a storage
+// provider (e.g. `https://storage.fly/my_bucket`), or a object within a bucket
+// (e.g. `https://storage.fly/my_bucket/my_file`).
+type StorageObjects struct {
+	Prefixes resset.ResourceSet[resset.Prefix] `json:"storage_objects"`
+}
+
+func init() {
+	macaroon.RegisterCaveatType(&StorageObjects{})
+}
+
+func (c *StorageObjects) CaveatType() macaroon.CaveatType { return CavStorageObjects }
+func (c *StorageObjects) Name() string                    { return "StorageObjects" }
+
+func (c *StorageObjects) Prohibits(a macaroon.Access) error {
+	f, isFlyioAccess := a.(StorageObjectGetter)
+	if !isFlyioAccess {
+		return fmt.Errorf("%w: access isnt StorageObjectGetter", macaroon.ErrInvalidAccess)
+	}
+	return c.Prefixes.Prohibits(f.GetStorageObject(), f.GetAction())
 }
