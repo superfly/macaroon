@@ -127,15 +127,22 @@ func (ts tokens) Verify(ctx context.Context, isPerm Predicate, v Verifier) ([]*m
 		merr     = errors.New("no verified tokens")
 	)
 
+	if res == nil {
+		res = make(map[Macaroon]VerificationResult, len(dbp))
+	}
+
 	for i, t := range ts {
 		m, ok := t.(Macaroon)
 		if !ok {
 			continue
 		}
+		if _, ok := dbp[m]; !ok {
+			continue
+		}
 
 		resT, ok := res[m]
 		if !ok {
-			continue
+			resT = &FailedMacaroon{m.Unverified(), errors.New("missing verification result")}
 		}
 
 		ts[i] = resT
@@ -240,7 +247,10 @@ func (ts tokens) Attenuate(isPerm Predicate, caveats ...macaroon.Caveat) error {
 	}
 
 	var (
-		merr         error
+		merr error
+
+		// we stage all our updates in a separate slice, so we can skip applying
+		// any changes if there are errors.
 		replacements []*replacement
 	)
 
@@ -307,6 +317,8 @@ func (ts tokens) Attenuate(isPerm Predicate, caveats ...macaroon.Caveat) error {
 		case *FailedMacaroon:
 			tt.Str = r.str
 			tt.UnsafeMac = r.mac
+		default:
+			panic(fmt.Sprintf("unexpected token type: %T", tt))
 		}
 	}
 

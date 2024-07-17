@@ -17,10 +17,10 @@ import (
 )
 
 var (
-	IsPermissionToken = bundle.IsLocation(LocationPermission).Predicate()
-	IsAuthToken       = bundle.IsLocation(LocationAuthentication).Predicate()
-	IsNewAuthToken    = bundle.IsLocation(LocationNewAuthentication).Predicate()
-	IsSecretsToken    = bundle.IsLocation(LocationSecrets).Predicate()
+	IsPermissionToken = bundle.LocationFilter(LocationPermission).Predicate()
+	IsAuthToken       = bundle.LocationFilter(LocationAuthentication).Predicate()
+	IsNewAuthToken    = bundle.LocationFilter(LocationNewAuthentication).Predicate()
+	IsSecretsToken    = bundle.LocationFilter(LocationSecrets).Predicate()
 )
 
 // IsForOrgUnverified returns a Predicate, checking that the token is scoped to

@@ -27,7 +27,7 @@ type Bundle struct {
 
 // ParseBundle is the same as ParseBundleWithFilter, but uses the DefaultFilter.
 func ParseBundle(permissionLocation, hdr string) (*Bundle, error) {
-	f := DefaultFilter(IsLocation(permissionLocation).Predicate())
+	f := DefaultFilter(LocationFilter(permissionLocation).Predicate())
 
 	return ParseBundleWithFilter(permissionLocation, hdr, f)
 }
@@ -44,7 +44,7 @@ func ParseBundleWithFilter(permissionLocation, hdr string, filter Filter) (*Bund
 	)
 
 	b := &Bundle{
-		IsPermissionToken: IsLocation(permissionLocation).Predicate(),
+		IsPermissionToken: LocationFilter(permissionLocation).Predicate(),
 		m:                 new(sync.RWMutex),
 		ts:                filter.Apply(ts),
 	}
@@ -148,7 +148,7 @@ func (b *Bundle) Any(f Filter) bool {
 	b.m.RLock()
 	defer b.m.RUnlock()
 
-	return len(b.ts.Select(f)) > 0
+	return b.Count(f) > 0
 }
 
 // Count returns the number of tokens in the Bundle that match the filter.
@@ -257,6 +257,8 @@ func ForEach[T Token](b *Bundle, cb func(T)) {
 	}
 }
 
+// Map applies the callback to each token in the Bundle and returns a slice of
+// the callback's return values.
 func Map[R any, T Token](b *Bundle, cb func(T) R) []R {
 	b.m.RLock()
 	defer b.m.RUnlock()
@@ -271,6 +273,8 @@ func Map[R any, T Token](b *Bundle, cb func(T) R) []R {
 	return ret
 }
 
+// Reduce applies the callback to each token in the Bundle, accumulating the
+// result.
 func Reduce[A any, T Token](b *Bundle, cb func(A, T) A) A {
 	b.m.RLock()
 	defer b.m.RUnlock()

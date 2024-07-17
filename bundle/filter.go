@@ -97,6 +97,8 @@ func TypedPredicate[T Token](p func(T) bool) Predicate {
 	return And(isType[T], func(t Token) bool { return p(t.(T)) })
 }
 
+// HasCaveat returns a Predicate that selects Tokens with caveats of the given
+// type.
 func HasCaveat[C macaroon.Caveat](t Token) bool {
 	if m, ok := t.(Macaroon); ok {
 		return len(macaroon.GetCaveats[C](m.UnsafeCaveats())) != 0
@@ -181,13 +183,16 @@ var (
 	VerifiedMacaroonPredicate = TypedPredicate[*VerifiedMacaroon]
 )
 
-type IsLocation string
+// LocationFilter is a Filter that selects macaroons with the given location.
+type LocationFilter string
 
-func (l IsLocation) Apply(ts []Token) []Token {
+// Apply implements Filter
+func (l LocationFilter) Apply(ts []Token) []Token {
 	return l.Predicate().Apply(ts)
 }
 
-func (l IsLocation) Predicate() Predicate {
+// Predicate returns a Predicate based on the Filter.
+func (l LocationFilter) Predicate() Predicate {
 	return MacaroonPredicate(func(m Macaroon) bool {
 		return m.Location() == string(l)
 	})

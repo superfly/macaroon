@@ -8,6 +8,7 @@ import (
 
 type Token interface {
 	String() string
+	isToken()
 }
 
 // BadToken is an FailedMacaroon or MalformedMacaroon.
@@ -65,6 +66,7 @@ var (
 
 // implement Token
 func (t *UnverifiedMacaroon) String() string { return t.Str }
+func (t *UnverifiedMacaroon) isToken()       {}
 
 // implement Macaroon
 func (t *UnverifiedMacaroon) Unverified() *UnverifiedMacaroon    { return t }
@@ -153,10 +155,13 @@ func (t *MalformedMacaroon) Error() error { return t.Err }
 
 // implement Token
 func (t *MalformedMacaroon) String() string { return t.Str }
+func (t *MalformedMacaroon) isToken()       {}
 
 // NonMacaroon is a token that doesn't look like a macaroon.
 type NonMacaroon string
 
 var _ Token = NonMacaroon("")
 
+// implement Token
 func (t NonMacaroon) String() string { return string(t) }
+func (t NonMacaroon) isToken()       {}
