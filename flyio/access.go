@@ -50,9 +50,19 @@ func (f *Access) Validate() error {
 		return fmt.Errorf("%w org", resset.ErrResourceUnspecified)
 	}
 
-	// org-level resources = apps, features
-	if f.AppID != nil && f.Feature != nil {
-		return fmt.Errorf("%w: app, org-feature", resset.ErrResourcesMutuallyExclusive)
+	// org-level resources = apps, features, storage objects
+	var orgResources []string
+	if f.AppID != nil {
+		orgResources = append(orgResources, "app")
+	}
+	if f.Feature != nil {
+		orgResources = append(orgResources, *f.Feature)
+	}
+	if f.StorageObject != nil {
+		orgResources = append(orgResources, "storage-object")
+	}
+	if len(orgResources) > 1 {
+		return fmt.Errorf("%w: %s", resset.ErrResourcesMutuallyExclusive, strings.Join(orgResources, ", "))
 	}
 
 	// app-level resources = machines, volumes, app-features
@@ -65,9 +75,6 @@ func (f *Access) Validate() error {
 	}
 	if f.AppFeature != nil {
 		appResources = append(appResources, *f.AppFeature)
-	}
-	if f.StorageObject != nil {
-		appResources = append(appResources, "storage-object")
 	}
 	if len(appResources) != 0 && f.AppID == nil {
 		return fmt.Errorf("%w app if app-owned resource is specified", resset.ErrResourceUnspecified)
