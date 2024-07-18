@@ -254,11 +254,10 @@ func (ts tokens) Attenuate(isPerm Predicate, caveats ...macaroon.Caveat) error {
 
 	for _, t := range ts.Select(isPerm) {
 		var (
-			m     = t.(Macaroon)
-			nonce = m.Nonce()
-			uuid  = nonce.UUID()
-			r     = replacement{m: m}
-			err   error
+			m    = t.(Macaroon)
+			uuid = m.Nonce().UUID()
+			r    = replacement{m: m}
+			err  error
 		)
 
 		r.mac, err = m.UnsafeMacaroon().Clone()

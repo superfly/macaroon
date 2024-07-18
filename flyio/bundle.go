@@ -1,6 +1,8 @@
 package flyio
 
 import (
+	"strings"
+
 	"github.com/superfly/macaroon/bundle"
 	"github.com/superfly/macaroon/resset"
 )
@@ -43,4 +45,25 @@ func ParseBundle(hdr string) (*bundle.Bundle, error) {
 
 func ParseBundleWithFilter(hdr string, filter bundle.Filter) (*bundle.Bundle, error) {
 	return bundle.ParseBundleWithFilter(LocationPermission, hdr, filter)
+}
+
+type CSV []string
+
+func (c CSV) String() string {
+	return strings.Join(c, ",")
+}
+
+// UUIDs returns a CSV of the permission token UUIDs for the given bundle.
+func UUIDs(bun *bundle.Bundle) CSV {
+	return bundle.Map(bun.Select(IsPermissionToken), func(perm bundle.Macaroon) string {
+		return perm.Nonce().UUID().String()
+	})
+}
+
+// NonceEmails returns a CSV of the permission token pseudo email addresses for
+// the given bundle.
+func NonceEmails(bun *bundle.Bundle) CSV {
+	return bundle.Map(bun.Select(IsPermissionToken), func(perm bundle.Macaroon) string {
+		return NonceEmail(perm.Nonce())
+	})
 }

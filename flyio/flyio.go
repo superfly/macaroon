@@ -1,6 +1,8 @@
 package flyio
 
 import (
+	"fmt"
+
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/tp"
 )
@@ -23,4 +25,10 @@ func ParsePermissionAndDischargeTokens(header string) ([]byte, [][]byte, error) 
 // caveats in fly.io permission tokens.
 func DischargeClient(opts ...tp.ClientOption) *tp.Client {
 	return tp.NewClient(LocationPermission, opts...)
+}
+
+// NonceEmail is a pseudo-email address for a nonce. It's useful when we want an
+// email address associated with a token.
+func NonceEmail(n macaroon.Nonce) string {
+	return fmt.Sprintf("%s@tokens.fly.io", n.UUID())
 }
