@@ -316,15 +316,19 @@ func TestVerify(t *testing.T) {
 		assert.NoError(t, err)
 
 		_, err = bun.Verify(context.Background(), verifierFunc(func(ctx context.Context, dischargesByPermission map[Macaroon][]Macaroon) map[Macaroon]VerificationResult {
-			return nil
+			ret := make(map[Macaroon]VerificationResult, len(dischargesByPermission))
+			for perm := range dischargesByPermission {
+				ret[perm] = &FailedMacaroon{perm.Unverified(), errors.New("hi")}
+			}
+			return ret
 		}))
 
 		assert.Contains(t, err.Error(), "no verified tokens")
 
 		failed := bun.Select(Predicate(isType[*FailedMacaroon]))
 		assert.Equal(t, 2, failed.Len())
-		assert.Contains(t, failed.ts[:1].Error().Error(), "missing verification result")
-		assert.Contains(t, failed.ts[1:].Error().Error(), "missing verification result")
+		assert.EqualError(t, failed.ts[:1].Error(), "hi")
+		assert.EqualError(t, failed.ts[1:].Error(), "hi")
 	})
 
 	t.Run("returns ok if any verified", func(t *testing.T) {

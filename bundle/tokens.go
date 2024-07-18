@@ -126,14 +126,14 @@ func (ts tokens) Error() error {
 
 func (ts tokens) Verify(ctx context.Context, isPerm Predicate, v Verifier) ([]*macaroon.CaveatSet, error) {
 	var (
-		dbp      = ts.dischargesByPermission(isPerm)
-		res      = v.Verify(ctx, dbp)
 		verified = make([]*macaroon.CaveatSet, 0, len(ts)/2)
 		merr     = errors.New("no verified tokens")
+		dbp      = ts.dischargesByPermission(isPerm)
+		res      = v.Verify(ctx, dbp)
 	)
 
 	if res == nil {
-		res = make(map[Macaroon]VerificationResult, len(dbp))
+		return nil, merr
 	}
 
 	for i, t := range ts {
@@ -141,13 +141,10 @@ func (ts tokens) Verify(ctx context.Context, isPerm Predicate, v Verifier) ([]*m
 		if !ok {
 			continue
 		}
-		if _, ok := dbp[m]; !ok {
-			continue
-		}
 
 		resT, ok := res[m]
 		if !ok {
-			resT = &FailedMacaroon{m.Unverified(), errors.New("missing verification result")}
+			continue
 		}
 
 		ts[i] = resT

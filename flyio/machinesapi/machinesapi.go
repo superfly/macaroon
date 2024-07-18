@@ -43,9 +43,18 @@ type Client struct {
 
 // Verify implements bundle.Verifier using the Fly.io Machines API.
 func (v *Client) Verify(ctx context.Context, dissByPerm map[bundle.Macaroon][]bundle.Macaroon) map[bundle.Macaroon]bundle.VerificationResult {
-	ret := make(map[bundle.Macaroon]bundle.VerificationResult, len(dissByPerm))
+	allMacs := make([]bundle.Macaroon, 0, len(dissByPerm)*2)
+	for perm, diss := range dissByPerm {
+		allMacs = append(allMacs, perm)
+		allMacs = append(allMacs, diss...)
+	}
 
-	failAll := func(err error) map[bundle.Macaroon]bundle.VerificationResult {
+	reqBody := verifyRequest{Header: bundle.String(allMacs...)}
+	respBody := make([]*verifyResult, 0, len(dissByPerm))
+
+	if err := v.post(ctx, authorizePath, &reqBody, &respBody); err != nil {
+		ret := make(map[bundle.Macaroon]bundle.VerificationResult, len(dissByPerm))
+
 		for perm := range dissByPerm {
 			ret[perm] = &bundle.FailedMacaroon{
 				UnverifiedMacaroon: perm.Unverified(),
@@ -56,56 +65,18 @@ func (v *Client) Verify(ctx context.Context, dissByPerm map[bundle.Macaroon][]bu
 		return ret
 	}
 
-	allMacs := make([]bundle.Macaroon, 0, len(dissByPerm)*2)
-	for perm, diss := range dissByPerm {
-		allMacs = append(allMacs, perm)
-		allMacs = append(allMacs, diss...)
-	}
+	ret := resultsVerifier(respBody).Verify(ctx, dissByPerm)
 
-	reqBody := verifyRequest{Header: bundle.String(allMacs...)}
-	respBody := make([]verifyResult, 0, len(dissByPerm))
-
-	if err := v.post(ctx, authorizePath, &reqBody, &respBody); err != nil {
-		return failAll(err)
-	}
-
-	permByTok := make(map[string]bundle.Macaroon, len(dissByPerm))
+	// resultsVerifier deletes successfully verified tokens from dissByPerm, so
+	// the remaining ones are failed.
 	for perm := range dissByPerm {
-		toks, err := macaroon.Parse(perm.String())
-		switch {
-		case err != nil:
-			delete(dissByPerm, perm)
-			ret[perm] = &bundle.FailedMacaroon{
-				UnverifiedMacaroon: perm.Unverified(),
-				Err:                err,
-			}
-		case len(toks) != 1:
-			delete(dissByPerm, perm)
-			ret[perm] = &bundle.FailedMacaroon{
-				UnverifiedMacaroon: perm.Unverified(),
-				Err:                errors.New("bad token in bundle"),
-			}
-		}
-
-		permByTok[string(toks[0])] = perm
-	}
-
-	for _, resp := range respBody {
-		perm, ok := permByTok[string(resp.PermissionToken)]
-		if !ok {
-			continue
-		}
-
-		delete(dissByPerm, perm)
-		ret[perm] = &bundle.VerifiedMacaroon{
+		ret[perm] = &bundle.FailedMacaroon{
 			UnverifiedMacaroon: perm.Unverified(),
-			Caveats:            resp.Caveats,
+			Err:                errors.New("verification failed"),
 		}
 	}
 
-	// we've deleted tokens that we've handled already from dissByPerm, so the
-	// remaining ones are failures.
-	return failAll(errors.New("verification failed"))
+	return ret
 }
 
 // The Machines API takes a different Access than is used in the flyio package.
@@ -223,6 +194,11 @@ func (c *Client) AuthorizeBundle(ctx context.Context, bun *bundle.Bundle, access
 		return nil, err
 	}
 
+	// mark the authorized token as verified too
+	if _, err := bun.Verify(ctx, resultsVerifier{respBody.VerifiedToken}); err != nil {
+		return nil, err
+	}
+
 	return respBody.Access, nil
 }
 
@@ -232,7 +208,8 @@ type authorizeRequest struct {
 }
 
 type authorizeResponse struct {
-	Access *flyio.Access `json:"access"`
+	Access        *flyio.Access `json:"access"`
+	VerifiedToken *verifyResult `json:"verified_token"`
 }
 
 type verifyRequest struct {
@@ -310,4 +287,46 @@ type ServerError struct {
 
 func (e *ServerError) Error() string {
 	return e.Err
+}
+
+type resultsVerifier []*verifyResult
+
+func (rv resultsVerifier) Verify(ctx context.Context, dissByPerm map[bundle.Macaroon][]bundle.Macaroon) map[bundle.Macaroon]bundle.VerificationResult {
+	ret := make(map[bundle.Macaroon]bundle.VerificationResult, len(dissByPerm))
+
+	permByTok := make(map[string]bundle.Macaroon, len(dissByPerm))
+	for perm := range dissByPerm {
+		toks, err := macaroon.Parse(perm.String())
+		switch {
+		case err != nil:
+			delete(dissByPerm, perm)
+			ret[perm] = &bundle.FailedMacaroon{
+				UnverifiedMacaroon: perm.Unverified(),
+				Err:                err,
+			}
+		case len(toks) != 1:
+			delete(dissByPerm, perm)
+			ret[perm] = &bundle.FailedMacaroon{
+				UnverifiedMacaroon: perm.Unverified(),
+				Err:                errors.New("bad token in bundle"),
+			}
+		}
+
+		permByTok[string(toks[0])] = perm
+	}
+
+	for _, resp := range rv {
+		perm, ok := permByTok[string(resp.PermissionToken)]
+		if !ok {
+			continue
+		}
+
+		delete(dissByPerm, perm)
+		ret[perm] = &bundle.VerifiedMacaroon{
+			UnverifiedMacaroon: perm.Unverified(),
+			Caveats:            resp.Caveats,
+		}
+	}
+
+	return ret
 }
