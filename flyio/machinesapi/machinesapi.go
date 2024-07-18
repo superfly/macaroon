@@ -28,8 +28,8 @@ var (
 )
 
 const (
-	authenticatePath = "/v1/tokens/authenticate_token"
-	authorizePath    = "/v1/tokens/authorize_token"
+	authenticatePath = "/v1/tokens/authenticate"
+	authorizePath    = "/v1/tokens/authorize"
 )
 
 // Client is a client for the Machines API tokens API. It implements
