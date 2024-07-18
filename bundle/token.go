@@ -11,12 +11,6 @@ type Token interface {
 	isToken()
 }
 
-// BadToken is an FailedMacaroon or MalformedMacaroon.
-type BadToken interface {
-	Token
-	Error() error
-}
-
 // Macaroon is a UnverifiedMacaroon, VerifiedMacaroon, or FailedMacaroon.
 type Macaroon interface {
 	Token

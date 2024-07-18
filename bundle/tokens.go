@@ -108,10 +108,15 @@ func String[T Token](ts ...T) string {
 }
 
 func (ts tokens) Error() error {
+	type badToken interface {
+		Token
+		Error() error
+	}
+
 	var merr error
 
 	for _, t := range ts {
-		if bt, ok := t.(BadToken); ok {
+		if bt, ok := t.(badToken); ok {
 			merr = errors.Join(merr, bt.Error())
 		}
 	}
@@ -169,11 +174,7 @@ func (ts tokens) Verify(ctx context.Context, isPerm Predicate, v Verifier) ([]*m
 func (ts tokens) Validate(accesses ...macaroon.Access) error {
 	merr := errors.New("no authorized tokens")
 
-	for _, t := range ts {
-		if !IsVerifiedMacaroon(t) {
-			continue
-		}
-
+	for _, t := range ts.Select(IsVerifiedMacaroon) {
 		vm := t.(*VerifiedMacaroon)
 
 		if err := vm.Caveats.Validate(accesses...); err != nil {
@@ -254,11 +255,7 @@ func (ts tokens) Attenuate(isPerm Predicate, caveats ...macaroon.Caveat) error {
 		replacements []*replacement
 	)
 
-	for _, t := range ts {
-		if !isPerm(t) {
-			continue
-		}
-
+	for _, t := range ts.Select(isPerm) {
 		var (
 			m     = t.(Macaroon)
 			nonce = m.Nonce()
@@ -331,11 +328,7 @@ func (ts tokens) dischargesByPermission(isPerm Predicate) map[Macaroon][]Macaroo
 		dbp           = make(map[Macaroon][]Macaroon, nPerm)
 	)
 
-	for _, t := range ts {
-		if !isPerm(t) {
-			continue
-		}
-
+	for _, t := range ts.Select(isPerm) {
 		m := t.(Macaroon)
 		tpts := m.ThirdPartyTickets()
 		dbp[m] = make([]Macaroon, 0, len(tpts))
@@ -356,11 +349,7 @@ func (ts tokens) permissionsByDischarge(isPerm Predicate) map[Macaroon][]Macaroo
 		pbd           = make(map[Macaroon][]Macaroon, nDiss)
 	)
 
-	for _, t := range ts {
-		if !isPerm(t) {
-			continue
-		}
-
+	for _, t := range ts.Select(isPerm) {
 		m := t.(Macaroon)
 
 		for _, tickets := range m.ThirdPartyTickets() {
@@ -381,11 +370,7 @@ func (ts tokens) undischargedTicketsByLocation(isPerm Predicate) map[string][][]
 		ubl       = make(map[string][][]byte)
 	)
 
-	for _, t := range ts {
-		if !isPerm(t) {
-			continue
-		}
-
+	for _, t := range ts.Select(isPerm) {
 		m := t.(Macaroon)
 
 		for tLoc, tickets := range m.ThirdPartyTickets() {

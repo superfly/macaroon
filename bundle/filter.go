@@ -28,7 +28,7 @@ func DefaultFilter(isPerm Predicate) Filter {
 		})
 
 		return Or(
-			IsNotMacaroon,
+			IsNonMacaroon,
 			isPerm,
 			notExtraneous,
 		).Apply(ts)
@@ -39,19 +39,15 @@ func isMissingDischarge(isPerm Predicate, tpLocation string) Filter {
 	return filterFunc(func(ts []Token) []Token {
 		dbt, _, _ := tokens(ts).dischargesByTicket(isPerm)
 
-		pred := Predicate(func(t Token) bool {
-			if !isPerm(t) {
-				return false
-			}
-
-			for _, ticket := range t.(Macaroon).TicketsForThirdParty(tpLocation) {
+		pred := And(isPerm, MacaroonPredicate(func(m Macaroon) bool {
+			for _, ticket := range m.TicketsForThirdParty(tpLocation) {
 				if len(dbt[string(ticket)]) == 0 {
 					return true
 				}
 			}
 
 			return false
-		})
+		}))
 
 		return pred.Apply(ts)
 	})
@@ -59,32 +55,32 @@ func isMissingDischarge(isPerm Predicate, tpLocation string) Filter {
 
 func withDischarges(isPerm Predicate, f Filter) Filter {
 	return filterFunc(func(ts []Token) []Token {
-		filtered := tokens(ts).Select(f)
-		fMap := make(map[Token]bool, len(filtered))
-		for _, t := range filtered {
-			fMap[t] = true
-		}
-
+		fPred := filterPredicate(f, ts)
 		pbd := tokens(ts).permissionsByDischarge(isPerm)
 
-		pred := Predicate(func(t Token) bool {
-			switch {
-			case fMap[t]:
-				return true
-			case !IsWellFormedMacaroon(t):
-				return false
-			}
-
-			for _, p := range pbd[t.(Macaroon)] {
-				if fMap[p] {
+		pred := Or(fPred, MacaroonPredicate(func(t Macaroon) bool {
+			for _, p := range pbd[t] {
+				if fPred(p) {
 					return true
 				}
 			}
 
 			return false
-		})
+		}))
 
 		return pred.Apply(ts)
+	})
+}
+
+func filterPredicate(f Filter, ts tokens) Predicate {
+	filtered := tokens(ts).Select(f)
+	fMap := make(map[Token]bool, len(filtered))
+	for _, t := range filtered {
+		fMap[t] = true
+	}
+
+	return Predicate(func(t Token) bool {
+		return fMap[t]
 	})
 }
 
@@ -172,15 +168,25 @@ func isType[T Token](t Token) bool {
 }
 
 var (
-	KeepAll                   = Predicate(func(Token) bool { return true })
-	KeepNone                  = Predicate(func(Token) bool { return false })
-	IsNotMacaroon             = Predicate(isType[NonMacaroon])
-	IsMacaroon                = Not(IsNotMacaroon)
-	IsWellFormedMacaroon      = Predicate(isType[Macaroon])
-	IsNotMalformedMacaroon    = Not(isType[*MalformedMacaroon])
-	IsVerifiedMacaroon        = Predicate(isType[*VerifiedMacaroon])
-	MacaroonPredicate         = TypedPredicate[Macaroon]
-	VerifiedMacaroonPredicate = TypedPredicate[*VerifiedMacaroon]
+	KeepAll  = Predicate(func(Token) bool { return true })
+	KeepNone = Predicate(func(Token) bool { return false })
+
+	IsNonMacaroon        = Predicate(isType[NonMacaroon])
+	IsMalformedMacaroon  = Predicate(isType[*MalformedMacaroon])
+	IsVerifiedMacaroon   = Predicate(isType[*VerifiedMacaroon])
+	IsUnverifiedMacaroon = Predicate(isType[*UnverifiedMacaroon])
+	IsFailedMacaroon     = Predicate(isType[*FailedMacaroon])
+
+	IsWellFormedMacaroon = Predicate(isType[Macaroon])
+	IsVerificationResult = Predicate(isType[VerificationResult])
+
+	NonMacaroonPredicate        = TypedPredicate[NonMacaroon]
+	MalformedMacaroonPredicate  = TypedPredicate[*MalformedMacaroon]
+	VerifiedMacaroonPredicate   = TypedPredicate[*VerifiedMacaroon]
+	UnverifiedMacaroonPredicate = TypedPredicate[*UnverifiedMacaroon]
+	FailedMacaroonPredicate     = TypedPredicate[*FailedMacaroon]
+	MacaroonPredicate           = TypedPredicate[Macaroon]
+	VerificationResultPredicate = TypedPredicate[VerificationResult]
 )
 
 // LocationFilter is a Filter that selects macaroons with the given location.
