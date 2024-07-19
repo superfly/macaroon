@@ -10,19 +10,18 @@ import (
 )
 
 type Access struct {
-	Action         resset.Action  `json:"action,omitempty"`
-	OrgID          *uint64        `json:"orgid,omitempty"`
-	AppID          *uint64        `json:"appid,omitempty"`
-	AppFeature     *string        `json:"app_feature,omitempty"`
-	Feature        *string        `json:"feature,omitempty"`
-	Volume         *string        `json:"volume,omitempty"`
-	Machine        *string        `json:"machine,omitempty"`
-	MachineFeature *string        `json:"machine_feature,omitempty"`
-	Mutation       *string        `json:"mutation,omitempty"`
-	SourceMachine  *string        `json:"sourceMachine,omitempty"`
-	Cluster        *string        `json:"cluster,omitempty"`
-	Command        []string       `json:"command,omitempty"`
-	StorageObject  *resset.Prefix `json:"storage_object,omitempty"`
+	Action         resset.Action `json:"action,omitempty"`
+	OrgID          *uint64       `json:"orgid,omitempty"`
+	AppID          *uint64       `json:"appid,omitempty"`
+	AppFeature     *string       `json:"app_feature,omitempty"`
+	Feature        *string       `json:"feature,omitempty"`
+	Volume         *string       `json:"volume,omitempty"`
+	Machine        *string       `json:"machine,omitempty"`
+	MachineFeature *string       `json:"machine_feature,omitempty"`
+	Mutation       *string       `json:"mutation,omitempty"`
+	SourceMachine  *string       `json:"sourceMachine,omitempty"`
+	Cluster        *string       `json:"cluster,omitempty"`
+	Command        []string      `json:"command,omitempty"`
 }
 
 var (
@@ -57,9 +56,6 @@ func (f *Access) Validate() error {
 	}
 	if f.Feature != nil {
 		orgResources = append(orgResources, *f.Feature)
-	}
-	if f.StorageObject != nil {
-		orgResources = append(orgResources, "storage-object")
 	}
 	if len(orgResources) > 1 {
 		return fmt.Errorf("%w: %s", resset.ErrResourcesMutuallyExclusive, strings.Join(orgResources, ", "))
@@ -306,15 +302,3 @@ var _ CommandGetter = (*Access)(nil)
 
 // GetCommand implements CommandGetter.
 func (a *Access) GetCommand() []string { return a.Command }
-
-// StorageObjectGetter is an interface allowing other packages to implement
-// Accesses that work with Caveats defined in this package.
-type StorageObjectGetter interface {
-	resset.Access
-	GetStorageObject() *resset.Prefix
-}
-
-var _ StorageObjectGetter = (*Access)(nil)
-
-// GetStorageObject implements StorageObjectGetter.
-func (a *Access) GetStorageObject() *resset.Prefix { return a.StorageObject }

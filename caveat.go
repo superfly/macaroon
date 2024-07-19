@@ -42,7 +42,7 @@ const (
 	CavAction
 	CavFlyioCommands
 	CavFlyioAppFeatureSet
-	CavFlyioStorageObjects
+	CavStorageObjects
 	CavAllowedRoles
 
 	// allocate internal blocks of size 255 here
