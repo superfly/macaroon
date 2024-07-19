@@ -169,19 +169,19 @@ func (c *MaxValidity) Prohibits(a macaroon.Access) error {
 	switch aa, isAuthAccess := a.(*DischargeRequest); {
 	case !isAuthAccess:
 		return macaroon.ErrInvalidAccess
-	case aa.Expiry.Sub(aa.Now()) > c.duration():
+	case aa.Expiry.Sub(aa.Now()) > c.Duration():
 		return fmt.Errorf(
 			"%w: %v exceeds max validity window (%v)",
 			macaroon.ErrUnauthorized,
 			aa.Expiry.Sub(aa.Now()),
-			c.duration(),
+			c.Duration(),
 		)
 	default:
 		return nil
 	}
 }
 
-func (c *MaxValidity) duration() time.Duration {
+func (c *MaxValidity) Duration() time.Duration {
 	return time.Duration(*c) * time.Second
 }
 
@@ -189,7 +189,7 @@ func GetMaxValidity(cs *macaroon.CaveatSet) (time.Duration, bool) {
 	max := time.Duration(math.MaxInt64)
 
 	for _, cav := range macaroon.GetCaveats[*MaxValidity](cs) {
-		if cavDur := cav.duration(); max > cavDur {
+		if cavDur := cav.Duration(); max > cavDur {
 			max = cavDur
 		}
 	}
