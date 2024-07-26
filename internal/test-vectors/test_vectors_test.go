@@ -9,7 +9,6 @@ import (
 )
 
 func TestCaveatSerialization(t *testing.T) {
-
 	b, err := json.Marshal(caveats)
 	assert.NoError(t, err)
 

@@ -188,7 +188,7 @@ func TestMacaroons(t *testing.T) {
 		decoded, err = Decode(encoded)
 		assert.NoError(t, err)
 
-		decodedCavs = decoded.UnsafeCaveats.Caveats
+		decodedCavs = decoded.UnsafeCaveats.Caveats()
 	}
 
 	requireVerify := func(t *testing.T) {
@@ -528,7 +528,7 @@ func TestAttenuate(t *testing.T) {
 	m2, err := decoded.Verify(key, nil, nil)
 	assert.NoError(t, err)
 
-	t.Logf("%s", m2)
+	t.Logf("%#v", m2)
 }
 
 func TestSimple3P(t *testing.T) {
@@ -653,25 +653,25 @@ func TestDuplicateCaveats(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.NoError(t, m.Add(cavParent(ActionAll, 123)))
-	assert.Equal(t, 1, len(m.UnsafeCaveats.Caveats))
+	assert.Equal(t, 1, len(m.UnsafeCaveats.Caveats()))
 
 	assert.NoError(t, m.Add(cavParent(ActionAll, 123)))
-	assert.Equal(t, 1, len(m.UnsafeCaveats.Caveats))
+	assert.Equal(t, 1, len(m.UnsafeCaveats.Caveats()))
 
 	assert.NoError(t, m.Add(cavParent(ActionAll, 123)))
-	assert.Equal(t, 1, len(m.UnsafeCaveats.Caveats))
+	assert.Equal(t, 1, len(m.UnsafeCaveats.Caveats()))
 
 	assert.NoError(t, m.Add(cavParent(ActionAll, 234)))
-	assert.Equal(t, 2, len(m.UnsafeCaveats.Caveats))
+	assert.Equal(t, 2, len(m.UnsafeCaveats.Caveats()))
 
 	assert.NoError(t, m.Add(cavParent(ActionRead, 123)))
-	assert.Equal(t, 3, len(m.UnsafeCaveats.Caveats))
+	assert.Equal(t, 3, len(m.UnsafeCaveats.Caveats()))
 
 	assert.NoError(t, m.Add(cavParent(ActionRead, 234)))
-	assert.Equal(t, 4, len(m.UnsafeCaveats.Caveats))
+	assert.Equal(t, 4, len(m.UnsafeCaveats.Caveats()))
 
 	assert.NoError(t, m.Add(cavParent(ActionAll, 345), cavParent(ActionAll, 345)))
-	assert.Equal(t, 5, len(m.UnsafeCaveats.Caveats))
+	assert.Equal(t, 5, len(m.UnsafeCaveats.Caveats()))
 }
 
 func TestDecodeNonce(t *testing.T) {

@@ -38,7 +38,7 @@ func (c *IfPresent) Prohibits(a macaroon.Access) error {
 		ifBranch bool
 	)
 
-	for _, cc := range c.Ifs.Caveats {
+	for _, cc := range c.Ifs.Caveats() {
 		// set err if any of the `Ifs` returns nil or a non-errResourceUnspecified error
 		if cErr := cc.Prohibits(ra); !errors.Is(cErr, ErrResourceUnspecified) {
 			err = merr.Append(err, cErr)
