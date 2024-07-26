@@ -45,11 +45,11 @@ type UnverifiedMacaroon struct {
 	// Str is the string representation of the token.
 	Str string
 
-	// UnsafeMac is the macaroon.Macaroon that was parsed from Str. It is
-	// not safe to modify (e.g. attenuate) this Macaroon directly, since updates
-	// need to be written to other fields in this struct. It is also not safe to
-	// use this Macaroon outside of a Select() call on a Bundle if concurrent
-	// callers might be accessing the Bundle or its tokens.
+	// UnsafeMac is the macaroon.Macaroon that was parsed from Str. It is not
+	// safe to modify (e.g. attenuate) this Macaroon directly, since updates
+	// need to be written to other fields in this struct. It is not safe to keep
+	// references to this Macaroon and use them directly if other goroutines
+	// might be accessing the Bundle it came from concurrently.
 	UnsafeMac *macaroon.Macaroon
 }
 

@@ -3,7 +3,10 @@ package bundle
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
+
+	"slices"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/superfly/macaroon"
@@ -102,13 +105,15 @@ func (vc *VerificationCache) Verify(ctx context.Context, dissByPerm map[Macaroon
 	hdrByPerm := make(map[Macaroon]string)
 
 	for perm, diss := range dissByPerm {
+		// sort discharges so we'll get the same cache key regardless of order
+		slices.SortFunc(diss, func(a, b Macaroon) int { return strings.Compare(a.String(), b.String()) })
+
 		hdr := String(append(diss, perm)...)
 
 		if v, ok := vc.cache.Get(hdr); ok && v.expiration.After(time.Now()) {
 			ret[perm] = v.vm
 			delete(dissByPerm, perm)
 		} else {
-			dissByPerm[perm] = diss
 			hdrByPerm[perm] = hdr
 		}
 	}
@@ -117,12 +122,10 @@ func (vc *VerificationCache) Verify(ctx context.Context, dissByPerm map[Macaroon
 		ret[perm] = res
 
 		if vm, ok := res.(*VerifiedMacaroon); ok {
-			exp := time.Now().Add(vc.ttl)
-			if texp := vm.Expiration(); texp.Before(texp) {
-				exp = texp
-			}
-
-			vc.cache.Add(hdrByPerm[perm], &cacheEntry{vm, exp})
+			vc.cache.Add(hdrByPerm[perm], &cacheEntry{
+				vm,
+				time.Now().Add(vc.ttl),
+			})
 		}
 	}
 
