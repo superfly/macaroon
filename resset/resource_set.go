@@ -10,10 +10,14 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+type Integer interface {
+	uint | uint8 | uint16 | uint32 | uint64 | int | int8 | int16 | int32 | int64
+}
+
 // ZeroID gets the zero value (0, or "") for a resource. This is used to refer
 // to an unspecified resource. For example, when creating a new app, you would
 // check for app:0:c permission.
-func ZeroID[ID uint64 | string]() (ret ID) {
+func ZeroID[ID Integer | string]() (ret ID) {
 	return
 }
 
@@ -29,9 +33,9 @@ func ZeroID[ID uint64 | string]() (ret ID) {
 //	type myCaveat struct {
 //	  Resources resset.ResourceSet[uint64]
 //	}
-type ResourceSet[ID uint64 | string | Prefix] map[ID]Action
+type ResourceSet[ID Integer | string | Prefix] map[ID]Action
 
-func New[ID uint64 | string | Prefix](p Action, ids ...ID) ResourceSet[ID] {
+func New[ID Integer | string | Prefix](p Action, ids ...ID) ResourceSet[ID] {
 	ret := make(ResourceSet[ID], len(ids))
 
 	for _, id := range ids {
@@ -79,6 +83,7 @@ func (rs ResourceSet[ID]) Prohibits(id *ID, action Action) error {
 }
 
 var _ msgpack.CustomEncoder = ResourceSet[uint64]{}
+var _ msgpack.CustomEncoder = ResourceSet[int32]{}
 var _ msgpack.CustomEncoder = ResourceSet[string]{}
 
 func (rs ResourceSet[ID]) EncodeMsgpack(enc *msgpack.Encoder) error {
@@ -111,7 +116,7 @@ func (rs ResourceSet[ID]) validate() error {
 	return nil
 }
 
-func match[ID uint64 | string | Prefix](a, b ID) bool {
+func match[ID Integer | string | Prefix](a, b ID) bool {
 	m, isM := any(a).(matcher[ID])
 	return a == b || (isM && m.Match(b))
 }
