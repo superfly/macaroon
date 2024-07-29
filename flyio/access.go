@@ -112,6 +112,69 @@ func (f *Access) Validate() error {
 	return nil
 }
 
+const (
+	FeatureWireGuard       = "wg"
+	FeatureDomains         = "domain"
+	FeatureSites           = "site"
+	FeatureRemoteBuilders  = "builder"
+	FeatureAddOns          = "addon"
+	FeatureChecks          = "checks"
+	FeatureLFSC            = "litefs-cloud"
+	FeatureMembership      = "membership"
+	FeatureBilling         = "billing"
+	FeatureDeletion        = "deletion"
+	FeatureDocumentSigning = "document_signing"
+	FeatureAuthentication  = "authentication"
+)
+
+var (
+	// MemberFeatures describes the level of access that non-admins are allowed
+	// for various org features.
+	MemberFeatures = map[string]resset.Action{
+		FeatureWireGuard:      resset.ActionAll,
+		FeatureDomains:        resset.ActionAll,
+		FeatureSites:          resset.ActionAll,
+		FeatureRemoteBuilders: resset.ActionAll,
+		FeatureAddOns:         resset.ActionAll,
+		FeatureChecks:         resset.ActionAll,
+		FeatureLFSC:           resset.ActionAll,
+
+		FeatureMembership:     resset.ActionRead,
+		FeatureBilling:        resset.ActionRead,
+		FeatureAuthentication: resset.ActionRead,
+
+		FeatureDeletion:        resset.ActionNone,
+		FeatureDocumentSigning: resset.ActionNone,
+	}
+)
+
+// PermittedRolesGetter is an interface for Accesses capable of indicating what
+// roles are allowed for the operation.
+type PermittedRolesGetter interface {
+	macaroon.Access
+
+	// GetPermittedRoles returns a slice of roles that are allowed to perform the
+	// operation.
+	GetPermittedRoles() []Role
+}
+
+var _ PermittedRolesGetter = (*Access)(nil)
+
+// GetPermittedRoles implements macaroon.PermittedRolesGetter. We require RoleAdmin
+// for unrecognized organization features or features for which the attempted
+// action is not allowed by ordinary members.
+func (a *Access) GetPermittedRoles() []Role {
+	if a.Feature == nil {
+		return []Role{RoleMember}
+	}
+
+	if memberAllowed, ok := MemberFeatures[*a.Feature]; ok && a.Action.IsSubsetOf(memberAllowed) {
+		return []Role{RoleMember}
+	}
+
+	return []Role{RoleAdmin}
+}
+
 // OrgIDGetter is an interface allowing other packages to implement Accesses
 // that work with Caveats defined in this package.
 type OrgIDGetter interface {

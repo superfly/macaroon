@@ -21,7 +21,8 @@ func TestCaveatSerialization(t *testing.T) {
 		&MachineFeatureSet{Features: resset.New(resset.ActionRead, "123")},
 		&FromMachine{ID: "asdf"},
 		&Clusters{Clusters: resset.New(resset.ActionRead, "123")},
-		&NoAdminFeatures{},
+		&IsMember{},
+		ptr(AllowedRoles(RoleAdmin)),
 		&Commands{Command{[]string{"123"}, true}},
 	)
 
@@ -40,61 +41,107 @@ func TestCaveatSerialization(t *testing.T) {
 	assert.Equal(t, cs, cs2)
 }
 
-func TestNoAdminFeatures(t *testing.T) {
-	cs := macaroon.NewCaveatSet(&NoAdminFeatures{})
+func TestAllowedRoles(t *testing.T) {
+	csMember := macaroon.NewCaveatSet(&IsMember{})
+	csAdmin := macaroon.NewCaveatSet(ptr(AllowedRoles(RoleAdmin)))
 
-	yes := func(access *Access) {
+	yes := func(cs *macaroon.CaveatSet, access *Access) {
 		t.Helper()
 		assert.NoError(t, cs.Validate(access))
 	}
 
-	no := func(access *Access, target error) {
+	no := func(cs *macaroon.CaveatSet, access *Access, target error) {
 		t.Helper()
 		err := cs.Validate(access)
 		assert.Error(t, err)
 		assert.IsError(t, err, target)
 	}
 
-	yes(&Access{
+	yes(csMember, &Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionAll,
+		Feature: ptr("wg"),
+	})
+	yes(csAdmin, &Access{
 		OrgID:   uptr(1),
 		Action:  resset.ActionAll,
 		Feature: ptr("wg"),
 	})
 
-	yes(&Access{
+	yes(csMember, &Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionRead,
+		Feature: ptr("membership"),
+	})
+	yes(csAdmin, &Access{
 		OrgID:   uptr(1),
 		Action:  resset.ActionRead,
 		Feature: ptr("membership"),
 	})
 
-	yes(&Access{
+	yes(csMember, &Access{
+		OrgID:  uptr(1),
+		Action: resset.ActionAll,
+	})
+	yes(csAdmin, &Access{
 		OrgID:  uptr(1),
 		Action: resset.ActionAll,
 	})
 
-	no(&Access{
+	no(csMember, &Access{
 		OrgID:   uptr(1),
 		Action:  resset.ActionWrite,
 		Feature: ptr("membership"),
-	}, resset.ErrUnauthorizedForAction)
+	}, ErrUnauthorizedForRole)
+	yes(csAdmin, &Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionWrite,
+		Feature: ptr("membership"),
+	})
 
-	no(&Access{
+	no(csMember, &Access{
 		OrgID:   uptr(1),
 		Action:  resset.ActionRead,
 		Feature: ptr("unknown"),
-	}, resset.ErrUnauthorizedForResource)
+	}, ErrUnauthorizedForRole)
+	yes(csAdmin, &Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionRead,
+		Feature: ptr("unknown"),
+	})
 
-	no(&Access{
+	no(csMember, &Access{
 		OrgID:   uptr(1),
 		Action:  resset.ActionNone,
 		Feature: ptr(""),
-	}, resset.ErrUnauthorizedForResource)
-
-	no(&Access{
+	}, ErrUnauthorizedForRole)
+	yes(csAdmin, &Access{
 		OrgID:   uptr(1),
 		Action:  resset.ActionNone,
 		Feature: ptr(""),
-	}, resset.ErrUnauthorizedForResource)
+	})
+
+	no(csMember, &Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionNone,
+		Feature: ptr(""),
+	}, ErrUnauthorizedForRole)
+	yes(csAdmin, &Access{
+		OrgID:   uptr(1),
+		Action:  resset.ActionNone,
+		Feature: ptr(""),
+	})
+}
+
+func TestRole(t *testing.T) {
+	assert.Equal(t, "admin", RoleAdmin.String())
+	assert.Equal(t, "member", RoleMember.String())
+	assert.Equal(t, "member+billing_manager", (RoleMember | RoleBillingManager).String())
+
+	assert.True(t, RoleAdmin.HasAllRoles(RoleAdmin))
+	assert.True(t, RoleAdmin.HasAllRoles(RoleMember))
+	assert.False(t, RoleMember.HasAllRoles(RoleAdmin))
+	assert.False(t, RoleMember.HasAllRoles(RoleBillingManager))
 }
 
 func TestCommands(t *testing.T) {
