@@ -2,6 +2,7 @@ package flyio
 
 import (
 	"fmt"
+	"strings"
 
 	"golang.org/x/exp/slices"
 
@@ -20,10 +21,11 @@ const (
 	CavMachineFeatureSet = macaroon.CavFlyioMachineFeatureSet
 	CavFromMachineSource = macaroon.CavFlyioFromMachineSource
 	CavClusters          = macaroon.CavFlyioClusters
-	CavNoAdminFeatures   = macaroon.CavNoAdminFeatures
+	CavIsMember          = macaroon.CavFlyioIsMember
 	CavCommands          = macaroon.CavFlyioCommands
 	CavAppFeatureSet     = macaroon.CavFlyioAppFeatureSet
 	CavStorageObjects    = macaroon.CavFlyioStorageObjects
+	CavAllowedRoles      = macaroon.CavAllowedRoles
 )
 
 type FromMachine struct {
@@ -239,83 +241,99 @@ func (c *Clusters) Prohibits(a macaroon.Access) error {
 	return c.Clusters.Prohibits(f.GetCluster(), f.GetAction())
 }
 
+// Role is used by the AllowedRoles and IsMember caveats.
+type Role uint32
+
 const (
-	FeatureWireGuard       = "wg"
-	FeatureDomains         = "domain"
-	FeatureSites           = "site"
-	FeatureRemoteBuilders  = "builder"
-	FeatureAddOns          = "addon"
-	FeatureChecks          = "checks"
-	FeatureLFSC            = "litefs-cloud"
-	FeatureMembership      = "membership"
-	FeatureBilling         = "billing"
-	FeatureDeletion        = "deletion"
-	FeatureDocumentSigning = "document_signing"
-	FeatureAuthentication  = "authentication"
+	RoleMember Role = 1 << iota
+	RoleBillingManager
+	// add new roles here! don't forget to update roleNames
+
+	RoleAdmin Role = 0xFFFFFFFF
 )
 
-var (
-	MemberFeatures = map[string]resset.Action{
-		FeatureWireGuard:      resset.ActionAll,
-		FeatureDomains:        resset.ActionAll,
-		FeatureSites:          resset.ActionAll,
-		FeatureRemoteBuilders: resset.ActionAll,
-		FeatureAddOns:         resset.ActionAll,
-		FeatureChecks:         resset.ActionAll,
-		FeatureLFSC:           resset.ActionAll,
+var roleNames = map[Role]string{
+	// put roles that are a combination of other roles at the top
+	RoleAdmin: "admin",
 
-		FeatureMembership:     resset.ActionRead,
-		FeatureBilling:        resset.ActionRead,
-		FeatureAuthentication: resset.ActionRead,
+	// put singular roles at the bottom
+	RoleMember:         "member",
+	RoleBillingManager: "billing_manager",
+}
 
-		FeatureDeletion:        resset.ActionNone,
-		FeatureDocumentSigning: resset.ActionNone,
+// HasAllRoles returns whether other is a subset of r.
+func (r Role) HasAllRoles(other Role) bool {
+	return r&other == other
+}
+
+func (r Role) String() string {
+	if r == 0 {
+		return "none"
 	}
-)
 
-// NoAdminFeatures is a shorthand for specifying that the token isn't allowed to
-// access admin-only features. Same as:
-//
-//	resset.IfPresent{
-//	  Ifs: macaroon.NewCaveatSet(&FeatureSet{
-//	    "memberFeatureOne": resset.ActionAll,
-//	    "memberFeatureTwo": resset.ActionAll,
-//	    "memberFeatureNNN": resset.ActionAll,
-//	  }),
-//	  Else: resset.ActionAll
-//	}
-type NoAdminFeatures struct{}
+	if nr, ok := roleNames[r]; ok {
+		return nr
+	}
 
-func init()                                                { macaroon.RegisterCaveatType(&NoAdminFeatures{}) }
-func (c *NoAdminFeatures) CaveatType() macaroon.CaveatType { return CavNoAdminFeatures }
-func (c *NoAdminFeatures) Name() string                    { return "NoAdminFeatures" }
+	var (
+		names    []string
+		combined Role
+	)
 
-func (c *NoAdminFeatures) Prohibits(a macaroon.Access) error {
-	f, isFlyioAccess := a.(FeatureGetter)
+	for namedRole, name := range roleNames {
+		if r.HasAllRoles(namedRole) {
+			names = append(names, name)
+			combined |= namedRole
+
+			if combined == r {
+				return strings.Join(names, "+")
+			}
+		}
+	}
+
+	return fmt.Sprintf("invalid(%d)", r)
+}
+
+// AllowedRoles is a bitmask of roles that may be assumed. Only usable with
+// Accesses implementing PermittedRolesGetter. Checks that a role returned by
+// [GetPermittedRoles] matches the mask.
+type AllowedRoles Role
+
+func init()                                             { macaroon.RegisterCaveatType(new(AllowedRoles)) }
+func (c *AllowedRoles) CaveatType() macaroon.CaveatType { return CavAllowedRoles }
+func (c *AllowedRoles) Name() string                    { return "AllowedRoles" }
+
+func (c *AllowedRoles) Prohibits(a macaroon.Access) error {
+	f, isFlyioAccess := a.(PermittedRolesGetter)
 	if !isFlyioAccess {
-		return fmt.Errorf("%w: access isnt FeatureGetter", macaroon.ErrInvalidAccess)
-	}
-	if f.GetFeature() == nil {
-		return nil
-	}
-	if *f.GetFeature() == "" {
-		return fmt.Errorf("%w admin org features", resset.ErrUnauthorizedForResource)
+		return fmt.Errorf("%w: access isn't PermittedRolesGetter", macaroon.ErrInvalidAccess)
 	}
 
-	memberPermission, ok := MemberFeatures[*f.GetFeature()]
-	if !ok {
-		return fmt.Errorf("%w %s", resset.ErrUnauthorizedForResource, *f.GetFeature())
-	}
-	if !f.GetAction().IsSubsetOf(memberPermission) {
-		return fmt.Errorf(
-			"%w %s access to %s",
-			resset.ErrUnauthorizedForAction,
-			f.GetAction().Remove(memberPermission),
-			*f.GetFeature(),
-		)
+	permittedRoles := f.GetPermittedRoles()
+	for _, permitted := range permittedRoles {
+		if Role(*c).HasAllRoles(permitted) {
+			return nil
+		}
 	}
 
-	return nil
+	return fmt.Errorf("%w: allowed roles (%v) not permitted (%v)", ErrUnauthorizedForRole, *c, permittedRoles)
+}
+
+// IsMember is an alias for RoleMask(RoleMember). It used to be called
+// NoAdminFeatures.
+type IsMember struct{}
+
+func init() {
+	macaroon.RegisterCaveatType(&IsMember{})
+	macaroon.RegisterCaveatJSONAlias(CavIsMember, "NoAdminFeatures")
+}
+
+func (c *IsMember) CaveatType() macaroon.CaveatType { return CavIsMember }
+func (c *IsMember) Name() string                    { return "IsMember" }
+
+func (c *IsMember) Prohibits(a macaroon.Access) error {
+	ar := AllowedRoles(RoleMember)
+	return ar.Prohibits(a)
 }
 
 // Commands is a list of commands allowed by this token.

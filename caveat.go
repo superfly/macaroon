@@ -35,7 +35,7 @@ const (
 	CavAuthConfineGoogleHD
 	CavAuthConfineGitHubOrg
 	CavAuthMaxValidity
-	CavNoAdminFeatures
+	CavFlyioIsMember
 	AttestationAuthFlyioUserID
 	AttestationAuthGitHubUserID
 	AttestationAuthGoogleUserID
@@ -43,6 +43,7 @@ const (
 	CavFlyioCommands
 	CavFlyioAppFeatureSet
 	CavFlyioStorageObjects
+	CavAllowedRoles
 
 	// allocate internal blocks of size 255 here
 	block255Min    CaveatType = 1 << 16
