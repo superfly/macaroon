@@ -1,11 +1,12 @@
 package storage
 
 import (
-	"errors"
+	"context"
 	"fmt"
 
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/auth"
+	"github.com/superfly/macaroon/bundle"
 	"github.com/superfly/macaroon/flyio"
 	"github.com/superfly/macaroon/resset"
 )
@@ -116,78 +117,41 @@ func (a *Authority) IssueTokenForFlyioOrg(thirdPartyLocation string, orgID uint6
 // CheckToken authenticates the provided token header and performs an authorization
 // check against the provided access.
 func (a *Authority) CheckToken(header string, access *Access) error {
-	toks, err := macaroon.Parse(header)
+	bun, err := bundle.ParseBundle(a.Location, header)
 	if err != nil {
-		return fmt.Errorf("failed to parse macaroon: %w", err)
+		return fmt.Errorf("malformed tokens: %w", err)
 	}
 
-	// partition out permission and discharge tokens
-	permissionMacaroons, _, _, dischargeTokens, err := macaroon.FindPermissionAndDischargeTokens(toks, a.Location)
-	if err != nil {
-		return fmt.Errorf("failed to find permission and discharge tokens: %w", err)
+	if _, err := bun.Verify(context.Background(), bundle.KeyResolver(a.resolveKey)); err != nil {
+		return fmt.Errorf("no valid tokens: %w", err)
 	}
 
-	merr := errors.New("no valid tokens")
-
-	for _, perm := range permissionMacaroons {
-		var (
-			nonce     = perm.Nonce
-			errorBase = fmt.Errorf("token %s", nonce.UUID().String())
-		)
-
-		// lookup key to use for authenticating token
-		key, ok := a.VerificationKeys.get(nonce.KID)
-		if !ok {
-			merr = errors.Join(merr, fmt.Errorf("%w: unknown key ID: %x", errorBase, nonce.KID))
-			continue
-		}
-
-		// authenticate token
-		verifiedCaveats, err := perm.Verify(key, dischargeTokens, a.ThirdPartyVerificationKeys)
-		if err != nil {
-			merr = errors.Join(merr, fmt.Errorf("%w: authentication failed: %w", errorBase, err))
-			continue
-		}
-
-		// authorize token
-		if err := verifiedCaveats.Validate(access); err != nil {
-			merr = errors.Join(merr, fmt.Errorf("%w: macaroon authorization failed: %w", errorBase, err))
-			continue
-		}
-
-		// found authenticated/authorized token
-		return nil
+	if err := bun.Validate(access); err != nil {
+		return fmt.Errorf("no authorized tokens: %w", err)
 	}
 
-	return merr
+	return nil
+}
+
+// resolveKey is a bundle.KeyResolver.
+func (a *Authority) resolveKey(_ context.Context, nonce macaroon.Nonce) (macaroon.SigningKey, map[string][]macaroon.EncryptionKey, error) {
+	if key, ok := a.VerificationKeys.get(nonce.KID); ok {
+		return key, a.ThirdPartyVerificationKeys, nil
+	}
+
+	return nil, nil, fmt.Errorf("unknown KID %x", nonce.KID)
 }
 
 // AttenuateToken adds caveats to the permission tokens in the provided token header.
 func (a *Authority) AttenuateToken(header string, caveats ...macaroon.Caveat) (string, error) {
-	toks, err := macaroon.Parse(header)
+	bun, err := bundle.ParseBundle(a.Location, header)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse macaroon: %w", err)
+		return "", fmt.Errorf("malformed tokens: %w", err)
 	}
 
-	// partition out permission and discharge tokens
-	permissionMacaroons, _, _, dischargeTokens, err := macaroon.FindPermissionAndDischargeTokens(toks, a.Location)
-	if err != nil {
-		return "", fmt.Errorf("failed to find permission and discharge tokens: %w", err)
+	if err := bun.Attenuate(caveats...); err != nil {
+		return "", fmt.Errorf("failed to attenuate tokens: %w", err)
 	}
 
-	var attenuated [][]byte
-	for _, perm := range permissionMacaroons {
-		if err := perm.Add(caveats...); err != nil {
-			return "", fmt.Errorf("failed to attenuate token: %w", err)
-		}
-
-		encoded, err := perm.Encode()
-		if err != nil {
-			return "", fmt.Errorf("failed to encode token: %w", err)
-		}
-
-		attenuated = append(attenuated, encoded)
-	}
-
-	return macaroon.ToAuthorizationHeader(append(attenuated, dischargeTokens...)...), nil
+	return bun.String(), nil
 }

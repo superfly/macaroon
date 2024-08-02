@@ -46,3 +46,9 @@ func (a *Access) GetAction() resset.Action { return a.Action }
 
 // GetOrgID implements flyio.OrgIDGetter.
 func (a *Access) GetOrgID() *uint64 { return &a.FlyioOrganizationID }
+
+// GetPermittedRoles implements flyio.PermittedRolesGetter and can be adjusted
+// to require different fly.io user roles based on the access being attempted.
+func (a *Access) GetPermittedRoles() []flyio.Role {
+	return []flyio.Role{flyio.RoleMember}
+}
