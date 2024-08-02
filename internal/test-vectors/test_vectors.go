@@ -40,8 +40,8 @@ func main() {
 		if macaroon.IsAttestation(c) {
 			k := macaroon.NewEncryptionKey()
 			m.Add3P(k, v.Location)
-			ticket, _ := m.ThirdPartyTicket(v.Location)
-			_, dm, _ := macaroon.DischargeTicket(k, v.Location, ticket)
+			tickets := m.TicketsForThirdParty(v.Location)
+			_, dm, _ := macaroon.DischargeTicket(k, v.Location, tickets[0])
 			m = dm
 		}
 
@@ -78,8 +78,8 @@ func main() {
 	withTP.UnsafeCaveats = *macaroon.NewCaveatSet()
 	withTP.Add3P(v.TPKey, "discharged")
 	withTP.Add3P(v.TPKey, "undischarged")
-	ticket, _ := withTP.ThirdPartyTicket("discharged")
-	_, dm, _ := macaroon.DischargeTicket(v.TPKey, "discharged", ticket)
+	tickets := withTP.TicketsForThirdParty("discharged")
+	_, dm, _ := macaroon.DischargeTicket(v.TPKey, "discharged", tickets[0])
 	dmTok, _ := dm.Encode()
 	permTok, _ := withTP.Encode()
 	v.WithTPs = macaroon.ToAuthorizationHeader(permTok, dmTok)

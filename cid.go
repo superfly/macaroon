@@ -19,7 +19,17 @@ type wireTicket struct {
 }
 
 // Checks the macaroon for a third party caveat for the specified location.
-// Returns the caveat's encrypted ticket, if found.
+// Returns the encrypted tickets for the caveats, if found.
+func TicketsForThirdParty(encodedMacaroon []byte, thirdPartyLocation string) ([][]byte, error) {
+	m, err := Decode(encodedMacaroon)
+	if err != nil {
+		return nil, err
+	}
+
+	return m.TicketsForThirdParty(thirdPartyLocation), nil
+}
+
+// DEPRECATED: Use TicketsForThirdParty instead. This will be removed in the next major version.
 func ThirdPartyTicket(encodedMacaroon []byte, thirdPartyLocation string) ([]byte, error) {
 	m, err := Decode(encodedMacaroon)
 	if err != nil {

@@ -307,10 +307,25 @@ func (m *Macaroon) Encode() ([]byte, error) {
 // only allow this request to perform reads, not writes"). Those added
 // ordinary caveats WILL be returned from Verify.
 func (m *Macaroon) Verify(k SigningKey, discharges [][]byte, trusted3Ps map[string][]EncryptionKey) (*CaveatSet, error) {
-	return m.verify(k, discharges, nil, true, trusted3Ps)
+	dms := make([]*Macaroon, 0, len(discharges))
+	for _, d := range discharges {
+		dm, err := Decode(d)
+		if err != nil {
+			// ignore malformed discharges
+			continue
+		}
+
+		dms = append(dms, dm)
+	}
+
+	return m.VerifyParsed(k, dms, trusted3Ps)
 }
 
-func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingIds [][]byte, trustAttestations bool, trusted3Ps map[string][]EncryptionKey) (*CaveatSet, error) {
+func (m *Macaroon) VerifyParsed(k SigningKey, dms []*Macaroon, trusted3Ps map[string][]EncryptionKey) (*CaveatSet, error) {
+	return m.verify(k, dms, nil, true, trusted3Ps)
+}
+
+func (m *Macaroon) verify(k SigningKey, dms []*Macaroon, parentTokenBindingIds [][]byte, trustAttestations bool, trusted3Ps map[string][]EncryptionKey) (*CaveatSet, error) {
 	if m.Nonce.Proof && m.newProof {
 		return nil, errors.New("can't verify unfinalized proof")
 	}
@@ -319,14 +334,10 @@ func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingI
 		trusted3Ps = map[string][]EncryptionKey{}
 	}
 
-	dischargeByTicket := make(map[string]*Macaroon, len(discharges))
-	for _, dBuf := range discharges {
-		decoded, err := Decode(dBuf)
-		if err != nil {
-			continue // ignore malformed discharges
-		}
-
-		dischargeByTicket[string(decoded.Nonce.KID)] = decoded
+	dmsByTicket := make(map[string][]*Macaroon, len(dms))
+	for _, dm := range dms {
+		skid := string(dm.Nonce.KID)
+		dmsByTicket[skid] = append(dmsByTicket[skid], dm)
 	}
 
 	curMac := sign(k, m.Nonce.MustEncode())
@@ -334,17 +345,17 @@ func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingI
 	ret := NewCaveatSet()
 
 	type verifyParams struct {
-		m *Macaroon
+		m []*Macaroon
 		k SigningKey
 	}
 
-	dischargesToVerify := make([]*verifyParams, 0, len(dischargeByTicket))
+	dischargesToVerify := make([]*verifyParams, 0, len(dmsByTicket))
 	thisTokenBindingIds := [][]byte{digest(curMac)}
 
 	for _, c := range m.UnsafeCaveats.Caveats {
 		switch cav := c.(type) {
 		case *Caveat3P:
-			discharge, ok := dischargeByTicket[string(cav.Ticket)]
+			discharges, ok := dmsByTicket[string(cav.Ticket)]
 			if !ok {
 				return nil, errors.New("no matching discharge token")
 			}
@@ -354,7 +365,7 @@ func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingI
 				return nil, fmt.Errorf("macaroon verify: unseal VerifierKey for third-party caveat: %w", err)
 			}
 
-			dischargesToVerify = append(dischargesToVerify, &verifyParams{discharge, dischargeKey})
+			dischargesToVerify = append(dischargesToVerify, &verifyParams{discharges, dischargeKey})
 		case *BindToParentToken:
 			// TODO @bento: this could be optimized
 			found := false
@@ -386,43 +397,61 @@ func (m *Macaroon) verify(k SigningKey, discharges [][]byte, parentTokenBindingI
 		thisTokenBindingIds = append(thisTokenBindingIds, digest(curMac))
 	}
 
-	for _, d := range dischargesToVerify {
-		// If the discharge was actually created by a known third party we can
-		// trust its attestations. Verify this by comparing signing key from
-		// VerifierKey/ticket.
-		var trustedDischarge bool
-
-		for _, ka := range trusted3Ps[d.m.Location] {
-			ticketr, err := unseal(ka, d.m.Nonce.KID)
-			if err != nil {
-				continue
-			}
-
-			var ticket wireTicket
-			if err = msgpack.Unmarshal(ticketr, &ticket); err != nil {
-				return ret, fmt.Errorf("bad ticket in discharge: %w", err)
-			}
-
-			if subtle.ConstantTimeCompare(d.k, ticket.DischargeKey) != 1 {
-				return ret, errors.New("discharge key from ticket/VerifierKey mismatch")
-			}
-
-			trustedDischarge = true
-			break
-		}
-
-		dcavs, err := d.m.verify(
-			d.k,
-			nil, /* don't let them nest yet */
-			thisTokenBindingIds,
-			trustAttestations && trustedDischarge,
-			trusted3Ps,
+	for _, vp := range dischargesToVerify {
+		var (
+			discharged bool
+			dErr       error
 		)
-		if err != nil {
-			return nil, fmt.Errorf("macaroon verify: verify discharge: %w", err)
+
+	dmLoop:
+		for _, dm := range vp.m {
+			// If the discharge was actually created by a known third party we can
+			// trust its attestations. Verify this by comparing signing key from
+			// VerifierKey/ticket.
+			var trustedDischarge bool
+
+		trustLoop:
+			for _, ka := range trusted3Ps[dm.Location] {
+				ticketr, err := unseal(ka, dm.Nonce.KID)
+				if err != nil {
+					continue trustLoop
+				}
+
+				var ticket wireTicket
+				if err = msgpack.Unmarshal(ticketr, &ticket); err != nil {
+					dErr = errors.Join(dErr, fmt.Errorf("bad ticket in discharge: %w", err))
+					continue dmLoop
+				}
+
+				if subtle.ConstantTimeCompare(vp.k, ticket.DischargeKey) != 1 {
+					dErr = errors.Join(dErr, errors.New("discharge key from ticket/VerifierKey mismatch"))
+					continue dmLoop
+				}
+
+				trustedDischarge = true
+				break trustLoop
+			}
+
+			dcavs, err := dm.verify(
+				vp.k,
+				nil, /* don't let them nest yet */
+				thisTokenBindingIds,
+				trustAttestations && trustedDischarge,
+				trusted3Ps,
+			)
+			if err != nil {
+				dErr = errors.Join(dErr, fmt.Errorf("macaroon verify: verify discharge: %w", err))
+				continue dmLoop
+			}
+
+			ret.Caveats = append(ret.Caveats, dcavs.Caveats...)
+			discharged = true
+			break dmLoop
 		}
 
-		ret.Caveats = append(ret.Caveats, dcavs.Caveats...)
+		if !discharged {
+			return nil, dErr
+		}
 	}
 
 	if m.Nonce.Proof {
@@ -520,8 +549,8 @@ func (m *Macaroon) Add3P(ka EncryptionKey, loc string, cs ...Caveat) error {
 	return nil
 }
 
-// ThirdPartyTickets extracts the encrypted tickets from a token's third party
-// caveats.
+// AllThirdPartyTickets extracts the encrypted tickets from a token's third party
+// caveats. The return value maps 3p locations to tickets.
 //
 // The ticket of a third-party caveat is a little ticket embedded in the
 // caveat that is readable by the third-party service for which it's
@@ -529,45 +558,62 @@ func (m *Macaroon) Add3P(ka EncryptionKey, loc string, cs ...Caveat) error {
 // token to satisfy the caveat.
 //
 // Macaroon services of all types are identified by their "location",
-// which in our scheme is always a URL. ThirdPartyTickets returns a map
+// which in our scheme is always a URL. AllThirdPartyTickets returns a map
 // of location to ticket. In a perfect world, you could iterate over this
 // map hitting each URL and passing it the associated ticket, collecting
 // all the discharge tokens you need for the request (it is never that
 // simple, though).
 //
 // Already-discharged caveats are excluded from the results.
-func (m *Macaroon) ThirdPartyTickets(existingDischarges ...[]byte) (map[string][]byte, error) {
-	ret := map[string][]byte{}
+func (m *Macaroon) AllThirdPartyTickets(existingDischarges ...[]byte) map[string][][]byte {
+	ret := map[string][][]byte{}
 	dischargeTickets := make(map[string]struct{}, len(existingDischarges))
 
 	for _, ed := range existingDischarges {
 		if n, err := DecodeNonce(ed); err == nil {
-			dischargeTickets[hex.EncodeToString(n.KID)] = struct{}{}
+			dischargeTickets[string(n.KID)] = struct{}{}
 		}
 	}
 
 	for _, cav := range GetCaveats[*Caveat3P](&m.UnsafeCaveats) {
-		if _, exists := ret[cav.Location]; exists {
-			return nil, fmt.Errorf("extract third party caveats: duplicate locations: %s", cav.Location)
+		if _, discharged := dischargeTickets[string(cav.Ticket)]; !discharged {
+			ret[cav.Location] = append(ret[cav.Location], cav.Ticket)
+		}
+	}
+
+	return ret
+}
+
+// TicketsForThirdParty returns the tickets (see [Macaron.ThirdPartyTickets]) associated
+// with a URL location, if possible.
+func (m *Macaroon) TicketsForThirdParty(location string, existingDischarges ...[]byte) [][]byte {
+	return m.AllThirdPartyTickets(existingDischarges...)[location]
+}
+
+// DEPRECATED: use AllThirdPartyTickets. This will be removed in the next major version.
+func (m *Macaroon) ThirdPartyTickets(existingDischarges ...[]byte) (map[string][]byte, error) {
+	tps := m.AllThirdPartyTickets(existingDischarges...)
+	ret := make(map[string][]byte, len(tps))
+
+	for loc, tickets := range tps {
+		if len(tickets) != 1 {
+			return nil, fmt.Errorf("extract third party caveats: duplicate locations: %s", loc)
 		}
 
-		if _, discharged := dischargeTickets[hex.EncodeToString(cav.Ticket)]; !discharged {
-			ret[cav.Location] = cav.Ticket
-		}
+		ret[loc] = tickets[0]
 	}
 
 	return ret, nil
 }
 
-// ThirdPartyTicket returns the ticket (see [Macaron.ThirdPartyTickets]) associated
-// with a URL location, if possible.
+// DEPRECATED: use TicketsForThirdParty. This will be removed in the next major version.
 func (m *Macaroon) ThirdPartyTicket(location string, existingDischarges ...[]byte) ([]byte, error) {
-	tickets, err := m.ThirdPartyTickets(existingDischarges...)
+	tps, err := m.ThirdPartyTickets(existingDischarges...)
 	if err != nil {
 		return nil, err
 	}
 
-	return tickets[location], nil
+	return tps[location], nil
 }
 
 // https://stackoverflow.com/questions/25065055/what-is-the-maximum-time-time-in-go
@@ -595,4 +641,14 @@ func (m *Macaroon) String() (string, error) {
 	}
 
 	return encodeTokens(tok), nil
+}
+
+// Clone returns a deep copy of the Macaroon by serializing and re-parsing it.
+func (m *Macaroon) Clone() (*Macaroon, error) {
+	b, err := m.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	return Decode(b)
 }

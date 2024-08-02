@@ -2,6 +2,7 @@ package macaroon
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -340,12 +341,10 @@ func TestMacaroons(t *testing.T) {
 
 		unboundDischarge := discharges[0]
 
-		tickets, err := decoded.ThirdPartyTickets()
-		assert.NoError(t, err)
+		tickets := decoded.TicketsForThirdParty("other loc")
+		assert.Equal(t, 1, len(tickets))
 
-		ticket := tickets["other loc"]
-
-		rticket, err := unseal(tpKey, ticket)
+		rticket, err := unseal(tpKey, tickets[0])
 		assert.NoError(t, err)
 
 		wticket := &wireTicket{}
@@ -472,11 +471,10 @@ func Test3pe2e(t *testing.T) {
 			rm, err := Decode(rBuf)
 			assert.NoError(t, err)
 
-			tps, err := rm.ThirdPartyTickets()
-			assert.NoError(t, err)
+			tickets := rm.TicketsForThirdParty(authLoc)
+			assert.Equal(t, 1, len(tickets))
 
-			ticket := tps[authLoc]
-			_, dm, err := dischargeTicket(ka, authLoc, ticket, isProof)
+			_, dm, err := dischargeTicket(ka, authLoc, tickets[0], isProof)
 			assert.NoError(t, err)
 
 			assert.NoError(t, dm.Add(cavExpiry(5*time.Minute)))
@@ -486,10 +484,10 @@ func Test3pe2e(t *testing.T) {
 			verifiedCavs, err := rm.Verify(key, [][]byte{aBuf}, nil)
 			assert.NoError(t, err)
 
-			_, _, err = dischargeTicket(ka, authLoc, ticket, isProof)
+			_, _, err = dischargeTicket(ka, authLoc, tickets[0], isProof)
 			assert.NoError(t, err)
-			ticket[10] = 0
-			_, _, err = dischargeTicket(ka, authLoc, ticket, isProof)
+			tickets[0][10] = 0
+			_, _, err = dischargeTicket(ka, authLoc, tickets[0], isProof)
 			assert.Error(t, err)
 
 			err = verifiedCavs.Validate(&testAccess{
@@ -554,11 +552,10 @@ func TestSimple3P(t *testing.T) {
 			decoded, err := Decode(rBuf)
 			assert.NoError(t, err)
 
-			tps, err := decoded.ThirdPartyTickets()
-			assert.NoError(t, err)
-			ticket := tps[authLoc]
+			tickets := decoded.TicketsForThirdParty(authLoc)
+			assert.Equal(t, 1, len(tickets))
 
-			_, dm, err := dischargeTicket(ka, authLoc, ticket, isProof)
+			_, dm, err := dischargeTicket(ka, authLoc, tickets[0], isProof)
 			assert.NoError(t, err)
 			assert.NoError(t, dm.Add(cavExpiry(5*time.Minute)))
 			aBuf, err := dm.Encode()
@@ -576,9 +573,8 @@ func TestSimple3P(t *testing.T) {
 			})
 			assert.NoError(t, err)
 
-			tps, err = decoded.ThirdPartyTickets(aBuf)
-			assert.NoError(t, err)
-			assert.Equal(t, 0, len(tps))
+			tickets = decoded.TicketsForThirdParty(authLoc, aBuf)
+			assert.Equal(t, 0, len(tickets))
 		})
 	}
 }
@@ -688,12 +684,19 @@ func TestDecodeNonce(t *testing.T) {
 }
 
 func dischargeMacaroon(ka EncryptionKey, location string, encodedMacaroon []byte) (bool, []Caveat, *Macaroon, error) {
-	ticket, err := ThirdPartyTicket(encodedMacaroon, location)
-	if err != nil || len(ticket) == 0 {
+	tickets, err := TicketsForThirdParty(encodedMacaroon, location)
+	if err != nil {
 		return false, nil, nil, err
 	}
+	switch len(tickets) {
+	case 0:
+		return false, nil, nil, err
+	case 1:
+	default:
+		return false, nil, nil, errors.New("multiple tickets for location")
+	}
 
-	dcavs, dm, err := DischargeTicket(ka, location, ticket)
+	dcavs, dm, err := DischargeTicket(ka, location, tickets[0])
 	return true, dcavs, dm, err
 }
 

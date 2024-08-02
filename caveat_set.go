@@ -36,6 +36,16 @@ func DecodeCaveats(buf []byte) (*CaveatSet, error) {
 	return cavs, nil
 }
 
+// Clone creates a deep copy of the CaveatSet by serializing and re-parsing it.
+func (c *CaveatSet) Clone() (*CaveatSet, error) {
+	buf, err := c.MarshalMsgpack()
+	if err != nil {
+		return nil, err
+	}
+
+	return DecodeCaveats(buf)
+}
+
 // Validates that the caveat set permits the specified accesses.
 func (c *CaveatSet) Validate(accesses ...Access) error {
 	return Validate(c, accesses...)
