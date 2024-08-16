@@ -51,28 +51,26 @@ func WithKeys(keyByKID map[string]macaroon.SigningKey, trustedTPs map[string][]m
 }
 
 func (kr KeyResolver) Verify(ctx context.Context, dissByPerm map[Macaroon][]Macaroon) map[Macaroon]VerificationResult {
-	ret := make(map[Macaroon]VerificationResult, len(dissByPerm))
+	return VerifierFunc(kr.VerifyOne).Verify(ctx, dissByPerm)
+}
 
-	for perm, diss := range dissByPerm {
-		key, trustedTPs, err := kr(ctx, perm.Nonce())
-		if err != nil {
-			ret[perm] = &FailedMacaroon{perm.Unverified(), err}
-			continue
-		}
-
-		disMacs := make([]*macaroon.Macaroon, 0, len(diss))
-		for _, d := range diss {
-			disMacs = append(disMacs, d.UnsafeMacaroon())
-		}
-
-		if cavs, err := perm.UnsafeMacaroon().VerifyParsed(key, disMacs, trustedTPs); err != nil {
-			ret[perm] = &FailedMacaroon{perm.Unverified(), err}
-		} else {
-			ret[perm] = &VerifiedMacaroon{perm.Unverified(), cavs}
-		}
+// VerifyOne is a VerifierFunc
+func (kr KeyResolver) VerifyOne(ctx context.Context, perm Macaroon, diss []Macaroon) VerificationResult {
+	key, trustedTPs, err := kr(ctx, perm.Nonce())
+	if err != nil {
+		return &FailedMacaroon{perm.Unverified(), err}
 	}
 
-	return ret
+	disMacs := make([]*macaroon.Macaroon, 0, len(diss))
+	for _, d := range diss {
+		disMacs = append(disMacs, d.UnsafeMacaroon())
+	}
+
+	if cavs, err := perm.UnsafeMacaroon().VerifyParsed(key, disMacs, trustedTPs); err != nil {
+		return &FailedMacaroon{perm.Unverified(), err}
+	} else {
+		return &VerifiedMacaroon{perm.Unverified(), cavs}
+	}
 }
 
 // VerificationCache is a Verifier that caches successful verification results.
@@ -134,4 +132,16 @@ func (vc *VerificationCache) Verify(ctx context.Context, dissByPerm map[Macaroon
 
 func (vc *VerificationCache) Purge() {
 	vc.cache.Purge()
+}
+
+type VerifierFunc func(ctx context.Context, perm Macaroon, diss []Macaroon) VerificationResult
+
+func (vf VerifierFunc) Verify(ctx context.Context, dissByPerm map[Macaroon][]Macaroon) map[Macaroon]VerificationResult {
+	ret := make(map[Macaroon]VerificationResult, len(dissByPerm))
+
+	for perm, diss := range dissByPerm {
+		ret[perm] = vf(ctx, perm, diss)
+	}
+
+	return ret
 }

@@ -263,10 +263,10 @@ func TestWithDischarges(t *testing.T) {
 	})
 }
 
-type verifierFunc func(ctx context.Context, dischargesByPermission map[Macaroon][]Macaroon) map[Macaroon]VerificationResult
+type testVerifier func(ctx context.Context, dischargesByPermission map[Macaroon][]Macaroon) map[Macaroon]VerificationResult
 
-func (vf verifierFunc) Verify(ctx context.Context, dischargesByPermission map[Macaroon][]Macaroon) map[Macaroon]VerificationResult {
-	return vf(ctx, dischargesByPermission)
+func (f testVerifier) Verify(ctx context.Context, dischargesByPermission map[Macaroon][]Macaroon) map[Macaroon]VerificationResult {
+	return f(ctx, dischargesByPermission)
 }
 
 func TestVerify(t *testing.T) {
@@ -283,7 +283,7 @@ func TestVerify(t *testing.T) {
 		bun, err := ParseBundle(permLoc, toks.String())
 		assert.NoError(t, err)
 
-		_, err = bun.Verify(context.Background(), verifierFunc(func(ctx context.Context, dischargesByPermission map[Macaroon][]Macaroon) map[Macaroon]VerificationResult {
+		_, err = bun.Verify(context.Background(), testVerifier(func(ctx context.Context, dischargesByPermission map[Macaroon][]Macaroon) map[Macaroon]VerificationResult {
 			ret := make(map[Macaroon]VerificationResult, len(dischargesByPermission))
 			assert.Equal(t, 2, len(dischargesByPermission))
 
@@ -315,7 +315,7 @@ func TestVerify(t *testing.T) {
 		bun, err := ParseBundle(permLoc, toks.String())
 		assert.NoError(t, err)
 
-		_, err = bun.Verify(context.Background(), verifierFunc(func(ctx context.Context, dischargesByPermission map[Macaroon][]Macaroon) map[Macaroon]VerificationResult {
+		_, err = bun.Verify(context.Background(), testVerifier(func(ctx context.Context, dischargesByPermission map[Macaroon][]Macaroon) map[Macaroon]VerificationResult {
 			ret := make(map[Macaroon]VerificationResult, len(dischargesByPermission))
 			for perm := range dischargesByPermission {
 				ret[perm] = &FailedMacaroon{perm.Unverified(), errors.New("hi")}
@@ -337,7 +337,7 @@ func TestVerify(t *testing.T) {
 		bun, err := ParseBundle(permLoc, toks.String())
 		assert.NoError(t, err)
 
-		_, err = bun.Verify(context.Background(), verifierFunc(func(ctx context.Context, dischargesByPermission map[Macaroon][]Macaroon) map[Macaroon]VerificationResult {
+		_, err = bun.Verify(context.Background(), testVerifier(func(ctx context.Context, dischargesByPermission map[Macaroon][]Macaroon) map[Macaroon]VerificationResult {
 			ret := make(map[Macaroon]VerificationResult, len(dischargesByPermission))
 
 			for perm := range dischargesByPermission {
