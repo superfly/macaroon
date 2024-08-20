@@ -52,7 +52,7 @@ func (v *Client) Verify(ctx context.Context, dissByPerm map[bundle.Macaroon][]bu
 	reqBody := verifyRequest{Header: bundle.String(allMacs...)}
 	respBody := make([]*verifyResult, 0, len(dissByPerm))
 
-	if err := v.post(ctx, authorizePath, &reqBody, &respBody); err != nil {
+	if err := v.post(ctx, authenticatePath, &reqBody, &respBody); err != nil {
 		ret := make(map[bundle.Macaroon]bundle.VerificationResult, len(dissByPerm))
 
 		for perm := range dissByPerm {
