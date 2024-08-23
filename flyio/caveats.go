@@ -286,6 +286,7 @@ func (r Role) String() string {
 			combined |= namedRole
 
 			if combined == r {
+				slices.Sort(names) // for consistency in tests
 				return strings.Join(names, "+")
 			}
 		}

@@ -136,7 +136,7 @@ func TestAllowedRoles(t *testing.T) {
 func TestRole(t *testing.T) {
 	assert.Equal(t, "admin", RoleAdmin.String())
 	assert.Equal(t, "member", RoleMember.String())
-	assert.Equal(t, "member+billing_manager", (RoleMember | RoleBillingManager).String())
+	assert.Equal(t, "billing_manager+member", (RoleMember | RoleBillingManager).String())
 
 	assert.True(t, RoleAdmin.HasAllRoles(RoleAdmin))
 	assert.True(t, RoleAdmin.HasAllRoles(RoleMember))

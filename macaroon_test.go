@@ -2,6 +2,7 @@ package macaroon
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -681,6 +682,27 @@ func TestDecodeNonce(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, m.Nonce, n)
+}
+
+func TestNonceJSON(t *testing.T) {
+	n1 := newNonce([]byte{1, 2, 3}, false)
+	n2 := newNonce([]byte{1, 2, 3}, true)
+	n3 := n1
+	n3.version = nonceV0
+	n4 := n1
+	n4.version = nonceV0
+
+	for _, n := range []Nonce{n1, n2, n3, n4} {
+		assert.NoError(t, msgpack.Unmarshal(n.MustEncode(), &n))
+
+		j, err := n.MarshalJSON()
+		assert.NoError(t, err)
+
+		var d Nonce
+		assert.NoError(t, json.Unmarshal(j, &d))
+
+		assert.Equal(t, n, d)
+	}
 }
 
 func dischargeMacaroon(ka EncryptionKey, location string, encodedMacaroon []byte) (bool, []Caveat, *Macaroon, error) {
