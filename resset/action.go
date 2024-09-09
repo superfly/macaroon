@@ -44,11 +44,20 @@ const (
 	// not modifying other attributes. In practice, this mostly applies to
 	// starting/stopping/signaling machines.
 	ActionControl
+
+	// ActionSign, ActionVerify, ActionEncrypt, and ActionDecrypt indicate
+	// operations using keys.
+	ActionSign
+	ActionVerify
+	ActionEncrypt
+	ActionDecrypt
 )
 
 const (
-	ActionAll  = ActionRead | ActionWrite | ActionCreate | ActionDelete | ActionControl
-	ActionNone = Action(0)
+	ActionAll = ActionRead | ActionWrite | ActionCreate | ActionDelete | ActionControl |
+		ActionSign | ActionVerify | ActionEncrypt | ActionDecrypt
+	ActionAllKeyOps = ActionSign | ActionVerify | ActionEncrypt | ActionDecrypt
+	ActionNone      = Action(0)
 )
 
 func ActionFromString(ms string) Action {
@@ -71,6 +80,14 @@ func ActionFromString(ms string) Action {
 			ret |= ActionDelete
 		case 'C':
 			ret |= ActionControl
+		case 'S':
+			ret |= ActionSign
+		case 'V':
+			ret |= ActionVerify
+		case 'E':
+			ret |= ActionEncrypt
+		case 'D':
+			ret |= ActionDecrypt
 		}
 	}
 
@@ -98,6 +115,22 @@ func (a Action) String() string {
 
 	if a&ActionControl != 0 {
 		str = append(str, 'C')
+	}
+
+	if a&ActionSign != 0 {
+		str = append(str, 'S')
+	}
+
+	if a&ActionVerify != 0 {
+		str = append(str, 'V')
+	}
+
+	if a&ActionEncrypt != 0 {
+		str = append(str, 'E')
+	}
+
+	if a&ActionDecrypt != 0 {
+		str = append(str, 'D')
 	}
 
 	return string(str)
