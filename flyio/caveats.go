@@ -102,7 +102,7 @@ func (c *Apps) Prohibits(a macaroon.Access) error {
 	if !isFlyioAccess {
 		return fmt.Errorf("%w: access isnt AppIDGetter", macaroon.ErrInvalidAccess)
 	}
-	return c.Apps.Prohibits(f.GetAppID(), f.GetAction())
+	return c.Apps.Prohibits(f.GetAppID(), f.GetAction(), "app")
 }
 
 type Volumes struct {
@@ -118,7 +118,7 @@ func (c *Volumes) Prohibits(a macaroon.Access) error {
 	if !isFlyioAccess {
 		return fmt.Errorf("%w: access isnt VolumeGetter", macaroon.ErrInvalidAccess)
 	}
-	return c.Volumes.Prohibits(f.GetVolume(), f.GetAction())
+	return c.Volumes.Prohibits(f.GetVolume(), f.GetAction(), "volume")
 }
 
 type Machines struct {
@@ -134,7 +134,7 @@ func (c *Machines) Prohibits(a macaroon.Access) error {
 	if !isFlyioAccess {
 		return fmt.Errorf("%w: access isnt MachineGetter", macaroon.ErrInvalidAccess)
 	}
-	return c.Machines.Prohibits(f.GetMachine(), f.GetAction())
+	return c.Machines.Prohibits(f.GetMachine(), f.GetAction(), "machine")
 }
 
 type MachineFeatureSet struct {
@@ -150,7 +150,7 @@ func (c *MachineFeatureSet) Prohibits(a macaroon.Access) error {
 	if !isFlyioAccess {
 		return fmt.Errorf("%w: access isnt MachineFeatureGetter", macaroon.ErrInvalidAccess)
 	}
-	return c.Features.Prohibits(f.GetMachineFeature(), f.GetAction())
+	return c.Features.Prohibits(f.GetMachineFeature(), f.GetAction(), "machine feature")
 }
 
 // FeatureSet is a collection of organization-level "features" that are managed
@@ -171,7 +171,7 @@ func (c *FeatureSet) Prohibits(a macaroon.Access) error {
 	if !isFlyioAccess {
 		return fmt.Errorf("%w: access isnt FeatureGetter", macaroon.ErrInvalidAccess)
 	}
-	return c.Features.Prohibits(f.GetFeature(), f.GetAction())
+	return c.Features.Prohibits(f.GetFeature(), f.GetAction(), "org feature")
 }
 
 // Mutations is a set of GraphQL mutations allowed by this token.
@@ -238,7 +238,7 @@ func (c *Clusters) Prohibits(a macaroon.Access) error {
 		return fmt.Errorf("%w: access isnt ClusterGetter", macaroon.ErrInvalidAccess)
 	}
 
-	return c.Clusters.Prohibits(f.GetCluster(), f.GetAction())
+	return c.Clusters.Prohibits(f.GetCluster(), f.GetAction(), "cluster")
 }
 
 // Role is used by the AllowedRoles and IsMember caveats.
@@ -401,7 +401,7 @@ func (c *AppFeatureSet) Prohibits(a macaroon.Access) error {
 	if !isFlyioAccess {
 		return fmt.Errorf("%w: access isnt AppFeatureGetter", macaroon.ErrInvalidAccess)
 	}
-	return c.Features.Prohibits(f.GetAppFeature(), f.GetAction())
+	return c.Features.Prohibits(f.GetAppFeature(), f.GetAction(), "app feature")
 }
 
 // StorageObjects limits what storage objects can be accessed. Objects are
@@ -425,5 +425,5 @@ func (c *StorageObjects) Prohibits(a macaroon.Access) error {
 	if !isFlyioAccess {
 		return fmt.Errorf("%w: access isnt StorageObjectGetter", macaroon.ErrInvalidAccess)
 	}
-	return c.Prefixes.Prohibits(f.GetStorageObject(), f.GetAction())
+	return c.Prefixes.Prohibits(f.GetStorageObject(), f.GetAction(), "storage object")
 }
