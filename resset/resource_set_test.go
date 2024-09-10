@@ -18,24 +18,24 @@ func TestResourceSet(t *testing.T) {
 		"bar": ActionWrite,
 	}
 
-	assert.NoError(t, rs.Prohibits(ptr("foo"), ActionRead|ActionWrite))
-	assert.NoError(t, rs.Prohibits(ptr("bar"), ActionWrite))
-	assert.True(t, errors.Is(rs.Prohibits(nil, ActionWrite), ErrResourceUnspecified))
-	assert.True(t, errors.Is(rs.Prohibits(ptr("baz"), ActionWrite), ErrUnauthorizedForResource))
-	assert.True(t, errors.Is(rs.Prohibits(ptr(zero), ActionWrite), ErrUnauthorizedForResource))
-	assert.True(t, errors.Is(rs.Prohibits(ptr("foo"), ActionAll), ErrUnauthorizedForAction))
+	assert.NoError(t, rs.Prohibits(ptr("foo"), ActionRead|ActionWrite, "test resource"))
+	assert.NoError(t, rs.Prohibits(ptr("bar"), ActionWrite, "test resource"))
+	assert.True(t, errors.Is(rs.Prohibits(nil, ActionWrite, "test resource"), ErrResourceUnspecified))
+	assert.True(t, errors.Is(rs.Prohibits(ptr("baz"), ActionWrite, "test resource"), ErrUnauthorizedForResource))
+	assert.True(t, errors.Is(rs.Prohibits(ptr(zero), ActionWrite, "test resource"), ErrUnauthorizedForResource))
+	assert.True(t, errors.Is(rs.Prohibits(ptr("foo"), ActionAll, "test resource"), ErrUnauthorizedForAction))
 }
 
 func TestZeroID(t *testing.T) {
 	zero := ZeroID[string]()
 	rs := &ResourceSet[string]{zero: ActionRead}
 
-	assert.NoError(t, rs.Prohibits(ptr("foo"), ActionRead))
-	assert.NoError(t, rs.Prohibits(ptr(zero), ActionRead))
+	assert.NoError(t, rs.Prohibits(ptr("foo"), ActionRead, "test resource"))
+	assert.NoError(t, rs.Prohibits(ptr(zero), ActionRead, "test resource"))
 
-	assert.True(t, errors.Is(rs.Prohibits(nil, ActionRead), ErrResourceUnspecified))
-	assert.True(t, errors.Is(rs.Prohibits(ptr("foo"), ActionWrite), ErrUnauthorizedForAction))
-	assert.True(t, errors.Is(rs.Prohibits(ptr(zero), ActionWrite), ErrUnauthorizedForAction))
+	assert.True(t, errors.Is(rs.Prohibits(nil, ActionRead, "test resource"), ErrResourceUnspecified))
+	assert.True(t, errors.Is(rs.Prohibits(ptr("foo"), ActionWrite, "test resource"), ErrUnauthorizedForAction))
+	assert.True(t, errors.Is(rs.Prohibits(ptr(zero), ActionWrite, "test resource"), ErrUnauthorizedForAction))
 
 	rs = &ResourceSet[string]{
 		zero:  ActionRead | ActionWrite,

@@ -45,26 +45,30 @@ func New[I ID](p Action, ids ...I) ResourceSet[I] {
 	return ret
 }
 
-func (rs ResourceSet[I]) Prohibits(id *I, action Action) error {
+func (rs ResourceSet[I]) Prohibits(id *I, action Action, resourceType string) error {
 	if err := rs.validate(); err != nil {
 		return err
 	}
 	if id == nil {
-		return fmt.Errorf("%w resource", ErrResourceUnspecified)
+		return fmt.Errorf("%w %s", ErrResourceUnspecified, resourceType)
 	}
 
 	var (
-		foundPerm = false
-		perm      = ActionAll
-		zeroID    I
+		foundPerm  = false
+		perm       = ActionAll
+		zeroID     I
+		allowedIDs []I
 	)
 
 	if zeroPerm, hasZero := rs[zeroID]; hasZero {
 		perm &= zeroPerm
 		foundPerm = true
+		allowedIDs = append(allowedIDs, zeroID)
 	}
 
 	for entryID, entryPerm := range rs {
+		allowedIDs = append(allowedIDs, entryID)
+
 		if match(entryID, *id) {
 			perm &= entryPerm
 			foundPerm = true
@@ -72,11 +76,11 @@ func (rs ResourceSet[I]) Prohibits(id *I, action Action) error {
 	}
 
 	if !foundPerm {
-		return fmt.Errorf("%w %v", ErrUnauthorizedForResource, *id)
+		return fmt.Errorf("%w %s %v (only %v)", ErrUnauthorizedForResource, resourceType, *id, allowedIDs)
 	}
 
 	if !action.IsSubsetOf(perm) {
-		return fmt.Errorf("%w access %s (%s not allowed)", ErrUnauthorizedForAction, action, action.Remove(perm))
+		return fmt.Errorf("%w access %s on %s (%s not allowed)", ErrUnauthorizedForAction, action, resourceType, action.Remove(perm))
 	}
 
 	return nil
