@@ -46,8 +46,8 @@ func (c *IfPresent) Prohibits(a macaroon.Access) error {
 		}
 	}
 
-	if !ifBranch && !ra.GetAction().IsSubsetOf(c.Else) {
-		return fmt.Errorf("%w access %s (%s not allowed)", ErrUnauthorizedForAction, ra.GetAction(), ra.GetAction().Remove(c.Else))
+	if !ifBranch && !IsSubsetOf(ra.GetAction(), c.Else) {
+		return fmt.Errorf("%w access %s (%s not allowed)", ErrUnauthorizedForAction, ra.GetAction(), Remove(ra.GetAction(), c.Else))
 	}
 
 	return err

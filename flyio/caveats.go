@@ -75,8 +75,8 @@ func (c *Organization) Prohibits(a macaroon.Access) error {
 		return fmt.Errorf("%w org", resset.ErrResourceUnspecified)
 	case c.ID != resset.ZeroID[uint64]() && c.ID != *f.GetOrgID():
 		return fmt.Errorf("%w org %d, only %d", resset.ErrUnauthorizedForResource, *f.GetOrgID(), c.ID)
-	case !f.GetAction().IsSubsetOf(c.Mask):
-		return fmt.Errorf("%w access %s (%s not allowed)", resset.ErrUnauthorizedForAction, f.GetAction(), f.GetAction().Remove(c.Mask))
+	case !resset.IsSubsetOf(f.GetAction(), c.Mask):
+		return fmt.Errorf("%w access %s (%s not allowed)", resset.ErrUnauthorizedForAction, f.GetAction(), resset.Remove(f.GetAction(), c.Mask))
 	default:
 		return nil
 	}
@@ -86,7 +86,7 @@ func (c *Organization) Prohibits(a macaroon.Access) error {
 // only with the listed apps, regardless of what the token says. Additional Apps can be added,
 // but they can only narrow, not expand, which apps (or access levels) can be reached from the token.
 type Apps struct {
-	Apps resset.ResourceSet[uint64] `json:"apps"`
+	Apps resset.ResourceSet[uint64, resset.Action] `json:"apps"`
 }
 
 func init() {
@@ -106,7 +106,7 @@ func (c *Apps) Prohibits(a macaroon.Access) error {
 }
 
 type Volumes struct {
-	Volumes resset.ResourceSet[string] `json:"volumes"`
+	Volumes resset.ResourceSet[string, resset.Action] `json:"volumes"`
 }
 
 func init()                                        { macaroon.RegisterCaveatType(&Volumes{}) }
@@ -122,7 +122,7 @@ func (c *Volumes) Prohibits(a macaroon.Access) error {
 }
 
 type Machines struct {
-	Machines resset.ResourceSet[string] `json:"machines"`
+	Machines resset.ResourceSet[string, resset.Action] `json:"machines"`
 }
 
 func init()                                         { macaroon.RegisterCaveatType(&Machines{}) }
@@ -138,7 +138,7 @@ func (c *Machines) Prohibits(a macaroon.Access) error {
 }
 
 type MachineFeatureSet struct {
-	Features resset.ResourceSet[string] `json:"features"`
+	Features resset.ResourceSet[string, resset.Action] `json:"features"`
 }
 
 func init()                                                  { macaroon.RegisterCaveatType(&MachineFeatureSet{}) }
@@ -159,7 +159,7 @@ func (c *MachineFeatureSet) Prohibits(a macaroon.Access) error {
 // individually with a Networks caveat. The feature name is free-form and more
 // should be addded as it makes sense.
 type FeatureSet struct {
-	Features resset.ResourceSet[string] `json:"features"`
+	Features resset.ResourceSet[string, resset.Action] `json:"features"`
 }
 
 func init()                                           { macaroon.RegisterCaveatType(&FeatureSet{}) }
@@ -225,7 +225,7 @@ func (c *IsUser) Prohibits(a macaroon.Access) error {
 // Clusters is a set of Cluster caveats, with their RWX access levels. Clusters
 // belong to the "litefs-cloud" org-feature.
 type Clusters struct {
-	Clusters resset.ResourceSet[string] `json:"clusters"`
+	Clusters resset.ResourceSet[string, resset.Action] `json:"clusters"`
 }
 
 func init()                                         { macaroon.RegisterCaveatType(&Clusters{}) }
@@ -389,7 +389,7 @@ func (c *Commands) Prohibits(a macaroon.Access) error {
 }
 
 type AppFeatureSet struct {
-	Features resset.ResourceSet[string] `json:"features"`
+	Features resset.ResourceSet[string, resset.Action] `json:"features"`
 }
 
 func init()                                              { macaroon.RegisterCaveatType(&AppFeatureSet{}) }
@@ -410,7 +410,7 @@ func (c *AppFeatureSet) Prohibits(a macaroon.Access) error {
 // provider (e.g. `https://storage.fly/my_bucket`), or a object within a bucket
 // (e.g. `https://storage.fly/my_bucket/my_file`).
 type StorageObjects struct {
-	Prefixes resset.ResourceSet[resset.Prefix] `json:"storage_objects"`
+	Prefixes resset.ResourceSet[resset.Prefix, resset.Action] `json:"storage_objects"`
 }
 
 func init() {

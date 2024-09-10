@@ -110,18 +110,18 @@ var caveats = macaroon.NewCaveatSet(
 	ptr(uint64Caveat(123)),
 	&sliceCaveat{1, 2, 3},
 	&mapCaveat{"c": "c", "a": "a", "b": "b"},
-	&intResourceSetCaveat{Body: resset.ResourceSet[uint64]{3: resset.ActionAll, 1: resset.ActionAll, 2: resset.ActionAll}},
-	&stringResourceSetCaveat{Body: resset.ResourceSet[string]{"c": resset.ActionAll, "a": resset.ActionAll, "b": resset.ActionAll}},
-	&prefixResourceSetCaveat{Body: resset.ResourceSet[resset.Prefix]{"c": resset.ActionAll, "a": resset.ActionAll, "b": resset.ActionAll}},
+	&intResourceSetCaveat{Body: resset.ResourceSet[uint64, resset.Action]{3: resset.ActionAll, 1: resset.ActionAll, 2: resset.ActionAll}},
+	&stringResourceSetCaveat{Body: resset.ResourceSet[string, resset.Action]{"c": resset.ActionAll, "a": resset.ActionAll, "b": resset.ActionAll}},
+	&prefixResourceSetCaveat{Body: resset.ResourceSet[resset.Prefix, resset.Action]{"c": resset.ActionAll, "a": resset.ActionAll, "b": resset.ActionAll}},
 	&structCaveat{
 		StringField:            "foo",
 		IntField:               -123,
 		UintField:              123,
 		SliceField:             []byte{1, 2, 3},
 		MapField:               map[string]string{"c": "c", "a": "a", "b": "b"},
-		IntResourceSetField:    resset.ResourceSet[uint64]{3: resset.ActionAll, 1: resset.ActionAll, 2: resset.ActionAll},
-		StringResourceSetField: resset.ResourceSet[string]{"c": resset.ActionAll, "a": resset.ActionAll, "b": resset.ActionAll},
-		PrefixResourceSetField: resset.ResourceSet[resset.Prefix]{"c": resset.ActionAll, "a": resset.ActionAll, "b": resset.ActionAll},
+		IntResourceSetField:    resset.ResourceSet[uint64, resset.Action]{3: resset.ActionAll, 1: resset.ActionAll, 2: resset.ActionAll},
+		StringResourceSetField: resset.ResourceSet[string, resset.Action]{"c": resset.ActionAll, "a": resset.ActionAll, "b": resset.ActionAll},
+		PrefixResourceSetField: resset.ResourceSet[resset.Prefix, resset.Action]{"c": resset.ActionAll, "a": resset.ActionAll, "b": resset.ActionAll},
 	},
 	auth.RequireUser(123),
 	auth.RequireOrganization(123),
@@ -205,7 +205,7 @@ func (c mapCaveat) EncodeMsgpack(enc *msgpack.Encoder) error {
 }
 
 type intResourceSetCaveat struct {
-	Body resset.ResourceSet[uint64]
+	Body resset.ResourceSet[uint64, resset.Action]
 }
 
 func init()                                                       { macaroon.RegisterCaveatType(new(intResourceSetCaveat)) }
@@ -214,7 +214,7 @@ func (c *intResourceSetCaveat) Name() string                      { return "IntR
 func (c *intResourceSetCaveat) Prohibits(f macaroon.Access) error { return nil }
 
 type stringResourceSetCaveat struct {
-	Body resset.ResourceSet[string]
+	Body resset.ResourceSet[string, resset.Action]
 }
 
 func init()                                                          { macaroon.RegisterCaveatType(new(stringResourceSetCaveat)) }
@@ -223,7 +223,7 @@ func (c *stringResourceSetCaveat) Name() string                      { return "S
 func (c *stringResourceSetCaveat) Prohibits(f macaroon.Access) error { return nil }
 
 type prefixResourceSetCaveat struct {
-	Body resset.ResourceSet[resset.Prefix]
+	Body resset.ResourceSet[resset.Prefix, resset.Action]
 }
 
 func init()                                                          { macaroon.RegisterCaveatType(new(prefixResourceSetCaveat)) }
@@ -237,9 +237,9 @@ type structCaveat struct {
 	UintField              uint64
 	SliceField             []byte
 	MapField               map[string]string
-	IntResourceSetField    resset.ResourceSet[uint64]
-	StringResourceSetField resset.ResourceSet[string]
-	PrefixResourceSetField resset.ResourceSet[resset.Prefix]
+	IntResourceSetField    resset.ResourceSet[uint64, resset.Action]
+	StringResourceSetField resset.ResourceSet[string, resset.Action]
+	PrefixResourceSetField resset.ResourceSet[resset.Prefix, resset.Action]
 }
 
 func init()                                               { macaroon.RegisterCaveatType(new(structCaveat)) }
