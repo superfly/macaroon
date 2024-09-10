@@ -61,28 +61,32 @@ func New[I ID, M BitMask](m M, ids ...I) ResourceSet[I, M] {
 	return ret
 }
 
-func (rs ResourceSet[I, M]) Prohibits(id *I, action M) error {
+func (rs ResourceSet[I, M]) Prohibits(id *I, action M, resourceType string) error {
 	if err := rs.validate(); err != nil {
 		return err
 	}
 	if id == nil {
-		return fmt.Errorf("%w resource", ErrResourceUnspecified)
+		return fmt.Errorf("%w %s", ErrResourceUnspecified, resourceType)
 	}
 
 	var (
-		foundPerm = false
-		zeroID    I
-		zeroM     M
-		maxM      = zeroM - 1
-		perm      = maxM
+		foundPerm  = false
+		zeroID     I
+		zeroM      M
+		maxM       = zeroM - 1
+		perm       = maxM
+		allowedIDs []I
 	)
 
 	if zeroPerm, hasZero := rs[zeroID]; hasZero {
 		perm &= zeroPerm
 		foundPerm = true
+		allowedIDs = append(allowedIDs, zeroID)
 	}
 
 	for entryID, entryPerm := range rs {
+		allowedIDs = append(allowedIDs, entryID)
+
 		if match(entryID, *id) {
 			perm &= entryPerm
 			foundPerm = true
@@ -90,11 +94,11 @@ func (rs ResourceSet[I, M]) Prohibits(id *I, action M) error {
 	}
 
 	if !foundPerm {
-		return fmt.Errorf("%w %v", ErrUnauthorizedForResource, *id)
+		return fmt.Errorf("%w %s %v (only %v)", ErrUnauthorizedForResource, resourceType, *id, allowedIDs)
 	}
 
 	if !IsSubsetOf(action, perm) {
-		return fmt.Errorf("%w access %s (%s not allowed)", ErrUnauthorizedForAction, action, Remove(action, perm))
+		return fmt.Errorf("%w access %s on %s (%s not allowed)", ErrUnauthorizedForAction, action, resourceType, Remove(action, perm))
 	}
 
 	return nil

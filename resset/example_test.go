@@ -39,7 +39,7 @@ func (c *Widgets) Prohibits(f macaroon.Access) error {
 		return macaroon.ErrInvalidAccess
 	}
 
-	return c.Widgets.Prohibits(wf.WidgetName, wf.Action)
+	return c.Widgets.Prohibits(wf.WidgetName, wf.Action, "widget")
 }
 
 // implements macaroon.Access; describes an attempt to access a widget
