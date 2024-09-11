@@ -14,16 +14,6 @@ import (
 // implementations.
 type Action uint16
 
-// IsSubsetOf returns wether all bits in p are set in other.
-func (a Action) IsSubsetOf(other Action) bool {
-	return a&other == a
-}
-
-// Remove returns the bits in p but not other
-func (a Action) Remove(other Action) Action {
-	return (a & other) ^ a
-}
-
 const (
 	// ActionRead indicates reading attributes of the specified objects.
 	ActionRead Action = 1 << iota
@@ -131,8 +121,8 @@ func (c *Action) Prohibits(a macaroon.Access) error {
 	switch {
 	case !ok:
 		return macaroon.ErrInvalidAccess
-	case !rsa.GetAction().IsSubsetOf(*c):
-		return fmt.Errorf("%w access %s (%s not allowed)", ErrUnauthorizedForAction, rsa.GetAction(), rsa.GetAction().Remove(*c))
+	case !IsSubsetOf(rsa.GetAction(), *c):
+		return fmt.Errorf("%w access %s (%s not allowed)", ErrUnauthorizedForAction, rsa.GetAction(), Remove(rsa.GetAction(), *c))
 	default:
 		return nil
 	}

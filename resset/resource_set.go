@@ -6,12 +6,28 @@ import (
 
 	"github.com/superfly/macaroon"
 	msgpack "github.com/vmihailenco/msgpack/v5"
+	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )
 
 type ID interface {
-	~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~string
+	constraints.Integer | ~string
+}
+
+type BitMask interface {
+	constraints.Unsigned
+	String() string
+}
+
+// IsSubsetOf returns wether all bits in a are set in b.
+func IsSubsetOf[M BitMask](a, b M) bool {
+	return a&b == a
+}
+
+// Remove returns the bits in a but not b
+func Remove[M BitMask](a, b M) M {
+	return (a & b) ^ a
 }
 
 // ZeroID gets the zero value (0, or "") for a resource. This is used to refer
@@ -26,26 +42,26 @@ func ZeroID[I ID]() (ret I) {
 // marshalling. As a result, they should be wrapped in a struct rather than
 // simply aliasing the type. For example, don't do this:
 //
-//	type myCaveat resset.ResourceSet[uint64]
+//	type myCaveat resset.ResourceSet[uint64, Action]
 //
 // Instead, do this:
 //
 //	type myCaveat struct {
-//	  Resources resset.ResourceSet[uint64]
+//	  Resources resset.ResourceSet[uint64, Action]
 //	}
-type ResourceSet[I ID] map[I]Action
+type ResourceSet[I ID, M BitMask] map[I]M
 
-func New[I ID](p Action, ids ...I) ResourceSet[I] {
-	ret := make(ResourceSet[I], len(ids))
+func New[I ID, M BitMask](m M, ids ...I) ResourceSet[I, M] {
+	ret := make(ResourceSet[I, M], len(ids))
 
 	for _, id := range ids {
-		ret[id] = p
+		ret[id] = m
 	}
 
 	return ret
 }
 
-func (rs ResourceSet[I]) Prohibits(id *I, action Action, resourceType string) error {
+func (rs ResourceSet[I, M]) Prohibits(id *I, action M, resourceType string) error {
 	if err := rs.validate(); err != nil {
 		return err
 	}
@@ -55,8 +71,10 @@ func (rs ResourceSet[I]) Prohibits(id *I, action Action, resourceType string) er
 
 	var (
 		foundPerm  = false
-		perm       = ActionAll
 		zeroID     I
+		zeroM      M
+		maxM       = zeroM - 1
+		perm       = maxM
 		allowedIDs []I
 	)
 
@@ -79,18 +97,18 @@ func (rs ResourceSet[I]) Prohibits(id *I, action Action, resourceType string) er
 		return fmt.Errorf("%w %s %v (only %v)", ErrUnauthorizedForResource, resourceType, *id, allowedIDs)
 	}
 
-	if !action.IsSubsetOf(perm) {
-		return fmt.Errorf("%w access %s on %s (%s not allowed)", ErrUnauthorizedForAction, action, resourceType, action.Remove(perm))
+	if !IsSubsetOf(action, perm) {
+		return fmt.Errorf("%w access %s on %s (%s not allowed)", ErrUnauthorizedForAction, action, resourceType, Remove(action, perm))
 	}
 
 	return nil
 }
 
-var _ msgpack.CustomEncoder = ResourceSet[uint64]{}
-var _ msgpack.CustomEncoder = ResourceSet[int32]{}
-var _ msgpack.CustomEncoder = ResourceSet[string]{}
+var _ msgpack.CustomEncoder = ResourceSet[uint64, Action]{}
+var _ msgpack.CustomEncoder = ResourceSet[int32, Action]{}
+var _ msgpack.CustomEncoder = ResourceSet[string, Action]{}
 
-func (rs ResourceSet[I]) EncodeMsgpack(enc *msgpack.Encoder) error {
+func (rs ResourceSet[I, M]) EncodeMsgpack(enc *msgpack.Encoder) error {
 	if err := enc.EncodeMapLen(len(rs)); err != nil {
 		return err
 	}
@@ -112,7 +130,7 @@ func (rs ResourceSet[I]) EncodeMsgpack(enc *msgpack.Encoder) error {
 	return nil
 }
 
-func (rs ResourceSet[ID]) validate() error {
+func (rs ResourceSet[ID, M]) validate() error {
 	var zeroID ID
 	if _, hasZero := rs[zeroID]; hasZero && len(rs) != 1 {
 		return fmt.Errorf("%w: cannot specify zero ID along with other IDs", macaroon.ErrBadCaveat)

@@ -12,7 +12,7 @@ import (
 func TestCaveatSerialization(t *testing.T) {
 	cs := macaroon.NewCaveatSet(
 		&Organization{ID: 123, Mask: resset.ActionRead},
-		&Apps{Apps: resset.ResourceSet[uint64]{123: resset.ActionRead}},
+		&Apps{Apps: resset.ResourceSet[uint64, resset.Action]{123: resset.ActionRead}},
 		&FeatureSet{Features: resset.New(resset.ActionRead, "123")},
 		&Volumes{Volumes: resset.New(resset.ActionRead, "123")},
 		&Machines{Machines: resset.New(resset.ActionRead, "123")},

@@ -59,7 +59,7 @@ func (c *testCaveatParentResource) Prohibits(f macaroon.Access) error {
 		return ErrResourceUnspecified
 	case *tf.ParentResource != c.ID:
 		return fmt.Errorf("%w resource", ErrUnauthorizedForResource)
-	case !tf.Action.IsSubsetOf(c.Permission):
+	case !IsSubsetOf(tf.Action, c.Permission):
 		return fmt.Errorf("%w action", ErrUnauthorizedForAction)
 	default:
 		return nil
@@ -89,7 +89,7 @@ func (c *testCaveatChildResource) Prohibits(f macaroon.Access) error {
 		return ErrResourceUnspecified
 	case *tf.ChildResource != c.ID:
 		return fmt.Errorf("%w resource", ErrUnauthorizedForResource)
-	case !tf.Action.IsSubsetOf(c.Permission):
+	case !IsSubsetOf(tf.Action, c.Permission):
 		return fmt.Errorf("%w action", ErrUnauthorizedForAction)
 	default:
 		return nil

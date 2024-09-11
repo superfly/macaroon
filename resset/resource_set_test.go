@@ -13,7 +13,7 @@ import (
 
 func TestResourceSet(t *testing.T) {
 	zero := ZeroID[string]()
-	rs := &ResourceSet[string]{
+	rs := &ResourceSet[string, Action]{
 		"foo": ActionRead | ActionWrite,
 		"bar": ActionWrite,
 	}
@@ -28,7 +28,7 @@ func TestResourceSet(t *testing.T) {
 
 func TestZeroID(t *testing.T) {
 	zero := ZeroID[string]()
-	rs := &ResourceSet[string]{zero: ActionRead}
+	rs := &ResourceSet[string, Action]{zero: ActionRead}
 
 	assert.NoError(t, rs.Prohibits(ptr("foo"), ActionRead, "test resource"))
 	assert.NoError(t, rs.Prohibits(ptr(zero), ActionRead, "test resource"))
@@ -37,7 +37,7 @@ func TestZeroID(t *testing.T) {
 	assert.True(t, errors.Is(rs.Prohibits(ptr("foo"), ActionWrite, "test resource"), ErrUnauthorizedForAction))
 	assert.True(t, errors.Is(rs.Prohibits(ptr(zero), ActionWrite, "test resource"), ErrUnauthorizedForAction))
 
-	rs = &ResourceSet[string]{
+	rs = &ResourceSet[string, Action]{
 		zero:  ActionRead | ActionWrite,
 		"bar": ActionWrite,
 	}
@@ -55,7 +55,7 @@ func TestResourceSetJSON(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, rsj2, rsj)
 
-	rs2 := ResourceSet[uint64]{}
+	rs2 := ResourceSet[uint64, Action]{}
 	assert.NoError(t, json.Unmarshal(rsj, &rs2))
 	assert.Equal(t, rs, rs2)
 }
@@ -66,7 +66,7 @@ func TestResourceSetMessagePack(t *testing.T) {
 	rsm, err := encode(rs)
 	assert.NoError(t, err)
 
-	rs2 := ResourceSet[uint64]{}
+	rs2 := ResourceSet[uint64, Action]{}
 	assert.NoError(t, msgpack.Unmarshal(rsm, &rs2))
 	assert.Equal(t, rs, rs2)
 
@@ -88,7 +88,7 @@ func TestResourceSetMessagePack(t *testing.T) {
 	rsm3, err := encode(map[uint64]Action{1: ActionRead, 2: ActionRead, 3: ActionRead})
 	assert.NoError(t, err)
 
-	rs3 := ResourceSet[uint64]{}
+	rs3 := ResourceSet[uint64, Action]{}
 	assert.NoError(t, msgpack.Unmarshal(rsm3, &rs3))
 	assert.Equal(t, rs, rs3)
 }

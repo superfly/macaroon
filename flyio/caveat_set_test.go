@@ -13,7 +13,7 @@ import (
 func TestScopeOrganizationID(t *testing.T) {
 	// error if not org constrained
 	_, err := OrganizationScope(macaroon.NewCaveatSet(
-		&Apps{resset.ResourceSet[uint64]{123: resset.ActionAll}},
+		&Apps{resset.ResourceSet[uint64, resset.Action]{123: resset.ActionAll}},
 	))
 
 	assert.True(t, errors.Is(err, macaroon.ErrUnauthorized))
@@ -52,7 +52,7 @@ func TestScopeOrganizationID(t *testing.T) {
 	// ok - no permission allowed by IfPresent
 	_, err = OrganizationScope(macaroon.NewCaveatSet(
 		&Organization{ID: 123, Mask: resset.ActionAll},
-		&resset.IfPresent{Else: resset.ActionNone, Ifs: macaroon.NewCaveatSet(&Apps{resset.ResourceSet[uint64]{123: resset.ActionAll}})},
+		&resset.IfPresent{Else: resset.ActionNone, Ifs: macaroon.NewCaveatSet(&Apps{resset.ResourceSet[uint64, resset.Action]{123: resset.ActionAll}})},
 	))
 
 	assert.NoError(t, err)
@@ -60,7 +60,7 @@ func TestScopeOrganizationID(t *testing.T) {
 	// ok - some child resource is required
 	id, err = OrganizationScope(macaroon.NewCaveatSet(
 		&Organization{ID: 123, Mask: resset.ActionAll},
-		&Apps{resset.ResourceSet[uint64]{234: resset.ActionAll}},
+		&Apps{resset.ResourceSet[uint64, resset.Action]{234: resset.ActionAll}},
 	))
 
 	assert.NoError(t, err)
@@ -77,8 +77,8 @@ func TestAppIDs(t *testing.T) {
 	// try each case with a id=* caveat, which should be a noop for scoping.
 	bases := [][]macaroon.Caveat{
 		{},
-		{&Apps{resset.ResourceSet[uint64]{0: resset.ActionAll}}},
-		{&Apps{resset.ResourceSet[uint64]{0: resset.ActionNone}}},
+		{&Apps{resset.ResourceSet[uint64, resset.Action]{0: resset.ActionAll}}},
+		{&Apps{resset.ResourceSet[uint64, resset.Action]{0: resset.ActionNone}}},
 	}
 
 	for _, base := range bases {
@@ -98,24 +98,24 @@ func TestAppIDs(t *testing.T) {
 
 		// {} for disjoint Apps
 		ids = AppScope(macaroon.NewCaveatSet(append(base,
-			&Apps{resset.ResourceSet[uint64]{1: resset.ActionRead}},
-			&Apps{resset.ResourceSet[uint64]{2: resset.ActionRead}},
+			&Apps{resset.ResourceSet[uint64, resset.Action]{1: resset.ActionRead}},
+			&Apps{resset.ResourceSet[uint64, resset.Action]{2: resset.ActionRead}},
 		)...))
 
 		assert.Equal(t, empty, ids)
 
 		// {} for disjoint Apps/IfPresent
 		ids = AppScope(macaroon.NewCaveatSet(append(base,
-			&Apps{resset.ResourceSet[uint64]{1: resset.ActionRead}},
-			&resset.IfPresent{Ifs: macaroon.NewCaveatSet(&Apps{resset.ResourceSet[uint64]{2: resset.ActionRead}})},
+			&Apps{resset.ResourceSet[uint64, resset.Action]{1: resset.ActionRead}},
+			&resset.IfPresent{Ifs: macaroon.NewCaveatSet(&Apps{resset.ResourceSet[uint64, resset.Action]{2: resset.ActionRead}})},
 		)...))
 
 		assert.Equal(t, empty, ids)
 
 		// {} for disjoint IfPresents
 		ids = AppScope(macaroon.NewCaveatSet(append(base,
-			&resset.IfPresent{Ifs: macaroon.NewCaveatSet(&Apps{resset.ResourceSet[uint64]{1: resset.ActionRead}})},
-			&resset.IfPresent{Ifs: macaroon.NewCaveatSet(&Apps{resset.ResourceSet[uint64]{2: resset.ActionRead}})},
+			&resset.IfPresent{Ifs: macaroon.NewCaveatSet(&Apps{resset.ResourceSet[uint64, resset.Action]{1: resset.ActionRead}})},
+			&resset.IfPresent{Ifs: macaroon.NewCaveatSet(&Apps{resset.ResourceSet[uint64, resset.Action]{2: resset.ActionRead}})},
 		)...))
 
 		assert.Equal(t, empty, ids)
@@ -127,44 +127,44 @@ func TestAppIDs(t *testing.T) {
 
 		// nil if app unconstrained and has unrelated caveats
 		ids = AppScope(macaroon.NewCaveatSet(append(base,
-			&resset.IfPresent{Else: resset.ActionRead, Ifs: macaroon.NewCaveatSet(&FeatureSet{resset.ResourceSet[string]{"wg": resset.ActionAll}})},
+			&resset.IfPresent{Else: resset.ActionRead, Ifs: macaroon.NewCaveatSet(&FeatureSet{resset.ResourceSet[string, resset.Action]{"wg": resset.ActionAll}})},
 		)...))
 
 		assert.Equal(t, unconstrained, ids)
 
 		// {123} if app constrained
 		ids = AppScope(macaroon.NewCaveatSet(append(base,
-			&Apps{resset.ResourceSet[uint64]{1: resset.ActionRead}},
+			&Apps{resset.ResourceSet[uint64, resset.Action]{1: resset.ActionRead}},
 		)...))
 
 		assert.Equal(t, constrained, ids)
 
 		// {123} if no permissions allowed on app
 		ids = AppScope(macaroon.NewCaveatSet(append(base,
-			&Apps{resset.ResourceSet[uint64]{1: resset.ActionNone}},
+			&Apps{resset.ResourceSet[uint64, resset.Action]{1: resset.ActionNone}},
 		)...))
 
 		assert.Equal(t, constrained, ids)
 
 		// {123} if disjoint permissions allowed on app
 		ids = AppScope(macaroon.NewCaveatSet(append(base,
-			&Apps{resset.ResourceSet[uint64]{1: resset.ActionRead}},
-			&Apps{resset.ResourceSet[uint64]{1: resset.ActionWrite}},
+			&Apps{resset.ResourceSet[uint64, resset.Action]{1: resset.ActionRead}},
+			&Apps{resset.ResourceSet[uint64, resset.Action]{1: resset.ActionWrite}},
 		)...))
 
 		assert.Equal(t, constrained, ids)
 
 		// {123} if app constrained by IfPresent
 		ids = AppScope(macaroon.NewCaveatSet(append(base,
-			&resset.IfPresent{Else: resset.ActionRead, Ifs: macaroon.NewCaveatSet(&Apps{resset.ResourceSet[uint64]{1: resset.ActionRead}})},
+			&resset.IfPresent{Else: resset.ActionRead, Ifs: macaroon.NewCaveatSet(&Apps{resset.ResourceSet[uint64, resset.Action]{1: resset.ActionRead}})},
 		)...))
 
 		assert.Equal(t, constrained, ids)
 
 		// {123} if app constrained and other IfPresent
 		ids = AppScope(macaroon.NewCaveatSet(append(base,
-			&Apps{resset.ResourceSet[uint64]{1: resset.ActionAll}},
-			&resset.IfPresent{Else: resset.ActionNone, Ifs: macaroon.NewCaveatSet(&FeatureSet{resset.ResourceSet[string]{"wg": resset.ActionAll}})},
+			&Apps{resset.ResourceSet[uint64, resset.Action]{1: resset.ActionAll}},
+			&resset.IfPresent{Else: resset.ActionNone, Ifs: macaroon.NewCaveatSet(&FeatureSet{resset.ResourceSet[string, resset.Action]{"wg": resset.ActionAll}})},
 		)...))
 
 		assert.Equal(t, constrained, ids)
@@ -186,40 +186,40 @@ func TestClusters(t *testing.T) {
 	assert.Equal(t, empty, ids)
 
 	// {} for disjoint Clusters
-	ids = ClusterScope(macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string]{"1": resset.ActionRead}}, &Clusters{resset.ResourceSet[string]{"2": resset.ActionRead}}))
+	ids = ClusterScope(macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string, resset.Action]{"1": resset.ActionRead}}, &Clusters{resset.ResourceSet[string, resset.Action]{"2": resset.ActionRead}}))
 	assert.Equal(t, empty, ids)
 
 	// {} for disjoint Clusters/IfPresent
-	ids = ClusterScope(macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string]{"1": resset.ActionRead}}, &resset.IfPresent{Ifs: macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string]{"2": resset.ActionRead}})}))
+	ids = ClusterScope(macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string, resset.Action]{"1": resset.ActionRead}}, &resset.IfPresent{Ifs: macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string, resset.Action]{"2": resset.ActionRead}})}))
 	assert.Equal(t, empty, ids)
 
 	// {} for disjoint IfPresents
 	ids = ClusterScope(macaroon.NewCaveatSet(
-		&resset.IfPresent{Ifs: macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string]{"1": resset.ActionRead}})},
-		&resset.IfPresent{Ifs: macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string]{"2": resset.ActionRead}})},
+		&resset.IfPresent{Ifs: macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string, resset.Action]{"1": resset.ActionRead}})},
+		&resset.IfPresent{Ifs: macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string, resset.Action]{"2": resset.ActionRead}})},
 	))
 	assert.Equal(t, empty, ids)
 
 	// {123} if cluster constrained
-	ids = ClusterScope(macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string]{"1": resset.ActionRead}}))
+	ids = ClusterScope(macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string, resset.Action]{"1": resset.ActionRead}}))
 	assert.Equal(t, constrained, ids)
 
 	// {123} if no permissions allowed on cluster
-	ids = ClusterScope(macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string]{"1": resset.ActionNone}}))
+	ids = ClusterScope(macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string, resset.Action]{"1": resset.ActionNone}}))
 	assert.Equal(t, constrained, ids)
 
 	// {123} if disjoint permissions allowed on cluster
-	ids = ClusterScope(macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string]{"1": resset.ActionRead}}, &Clusters{resset.ResourceSet[string]{"1": resset.ActionWrite}}))
+	ids = ClusterScope(macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string, resset.Action]{"1": resset.ActionRead}}, &Clusters{resset.ResourceSet[string, resset.Action]{"1": resset.ActionWrite}}))
 	assert.Equal(t, constrained, ids)
 
 	// {123} if cluster constrained by IfPresent
-	ids = ClusterScope(macaroon.NewCaveatSet(&resset.IfPresent{Else: resset.ActionRead, Ifs: macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string]{"1": resset.ActionRead}})}))
+	ids = ClusterScope(macaroon.NewCaveatSet(&resset.IfPresent{Else: resset.ActionRead, Ifs: macaroon.NewCaveatSet(&Clusters{resset.ResourceSet[string, resset.Action]{"1": resset.ActionRead}})}))
 	assert.Equal(t, constrained, ids)
 
 	// {123} if cluster constrained and other IfPresent
 	ids = ClusterScope(macaroon.NewCaveatSet(
-		&Clusters{resset.ResourceSet[string]{"1": resset.ActionAll}},
-		&resset.IfPresent{Else: resset.ActionNone, Ifs: macaroon.NewCaveatSet(&FeatureSet{resset.ResourceSet[string]{"wg": resset.ActionAll}})},
+		&Clusters{resset.ResourceSet[string, resset.Action]{"1": resset.ActionAll}},
+		&resset.IfPresent{Else: resset.ActionNone, Ifs: macaroon.NewCaveatSet(&FeatureSet{resset.ResourceSet[string, resset.Action]{"wg": resset.ActionAll}})},
 	))
 	assert.Equal(t, constrained, ids)
 }
@@ -227,7 +227,7 @@ func TestClusters(t *testing.T) {
 func TestAppsAllowing(t *testing.T) {
 	// OrganizationScope error
 	_, _, err := AppsAllowing(macaroon.NewCaveatSet(
-		&Apps{resset.ResourceSet[uint64]{123: resset.ActionAll}},
+		&Apps{resset.ResourceSet[uint64, resset.Action]{123: resset.ActionAll}},
 	), resset.ActionNone)
 
 	assert.True(t, errors.Is(err, macaroon.ErrUnauthorized))
@@ -250,7 +250,7 @@ func TestAppsAllowing(t *testing.T) {
 	// action prohibited on all apps
 	_, _, err = AppsAllowing(macaroon.NewCaveatSet(
 		&Organization{ID: 987, Mask: resset.ActionAll},
-		&Apps{resset.ResourceSet[uint64]{123: resset.ActionRead}},
+		&Apps{resset.ResourceSet[uint64, resset.Action]{123: resset.ActionRead}},
 	), resset.ActionWrite)
 
 	assert.True(t, errors.Is(err, resset.ErrUnauthorizedForAction))
@@ -267,7 +267,7 @@ func TestAppsAllowing(t *testing.T) {
 	// action allowed on some apps
 	orgID, appIDs, err = AppsAllowing(macaroon.NewCaveatSet(
 		&Organization{ID: 987, Mask: resset.ActionAll},
-		&Apps{Apps: resset.ResourceSet[uint64]{123: resset.ActionAll, 234: resset.ActionWrite, 345: resset.ActionRead}},
+		&Apps{Apps: resset.ResourceSet[uint64, resset.Action]{123: resset.ActionAll, 234: resset.ActionWrite, 345: resset.ActionRead}},
 	), resset.ActionWrite)
 
 	assert.NoError(t, err)

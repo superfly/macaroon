@@ -15,7 +15,7 @@ const (
 
 // implements macaroon.Caveat. Constrains access to widgets
 type Widgets struct {
-	Widgets ResourceSet[string] `json:"widgets"`
+	Widgets ResourceSet[string, Action] `json:"widgets"`
 }
 
 // register our Widgets caveat with the macaroons library so it's able to
@@ -86,7 +86,7 @@ func Example() {
 
 	// constrain the macaroon to accessing widget "foo" with any action or
 	// reading widget "bar".
-	err = userMacaroon.Add(&Widgets{ResourceSet[string]{
+	err = userMacaroon.Add(&Widgets{ResourceSet[string, Action]{
 		"foo": ActionAll,
 		"bar": ActionRead,
 	}})

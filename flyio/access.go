@@ -168,7 +168,7 @@ func (a *Access) GetPermittedRoles() []Role {
 		return []Role{RoleMember}
 	}
 
-	if memberAllowed, ok := MemberFeatures[*a.Feature]; ok && a.Action.IsSubsetOf(memberAllowed) {
+	if memberAllowed, ok := MemberFeatures[*a.Feature]; ok && resset.IsSubsetOf(a.Action, memberAllowed) {
 		return []Role{RoleMember}
 	}
 
