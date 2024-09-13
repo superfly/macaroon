@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/assert/v2"
+	"github.com/hashicorp/go-cleanhttp"
 	"github.com/sirupsen/logrus"
 	"github.com/superfly/macaroon"
 )
@@ -261,7 +262,7 @@ func checkFP(tb testing.TB, hdr string) []string {
 func basicAuthClient(username, password string) *http.Client {
 	return &http.Client{
 		Transport: &basicAuthTransport{
-			t:        http.DefaultTransport.(*http.Transport).Clone(),
+			t:        cleanhttp.DefaultTransport(),
 			username: username,
 			password: password,
 		},
