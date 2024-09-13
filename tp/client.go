@@ -65,6 +65,9 @@ func WithAuthentication(tpLocation, token string) ClientOption {
 		case *authenticatedHTTP:
 			t.auth[tpLocation] = token
 		default:
+			cpy := *c.http
+			c.http = &cpy
+
 			c.http.Transport = &authenticatedHTTP{
 				t:    t,
 				auth: map[string]string{tpLocation: token},
