@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-cleanhttp"
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/bundle"
 )
@@ -57,14 +58,16 @@ func WithAuthentication(tpLocation, token string) ClientOption {
 
 	return func(c *Client) {
 		if c.http == nil {
-			cpy := *http.DefaultClient
-			c.http = &cpy
+			c.http = cleanhttp.DefaultClient()
 		}
 
 		switch t := c.http.Transport.(type) {
 		case *authenticatedHTTP:
 			t.auth[tpLocation] = token
 		default:
+			cpy := *c.http
+			c.http = &cpy
+
 			c.http.Transport = &authenticatedHTTP{
 				t:    t,
 				auth: map[string]string{tpLocation: token},
@@ -123,7 +126,7 @@ func NewClient(firstPartyLocation string, opts ...ClientOption) *Client {
 	}
 
 	if client.http == nil {
-		client.http = http.DefaultClient
+		client.http = cleanhttp.DefaultClient()
 	}
 
 	if client.pollBackoffNext == nil {

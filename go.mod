@@ -14,6 +14,7 @@ require (
 
 require (
 	github.com/alecthomas/repr v0.2.0 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hexops/gotextdiff v1.0.3 // indirect
 	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect

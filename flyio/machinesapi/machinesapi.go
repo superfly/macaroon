@@ -11,6 +11,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/hashicorp/go-cleanhttp"
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/bundle"
 	"github.com/superfly/macaroon/flyio"
@@ -224,7 +225,7 @@ type verifyResult struct {
 func (c *Client) post(ctx context.Context, path string, req any, resp any) error {
 	c.setDefaultsOnce.Do(func() {
 		if c.HTTP == nil {
-			c.HTTP = http.DefaultTransport
+			c.HTTP = cleanhttp.DefaultTransport()
 		}
 
 		if c.BaseURL == nil {
