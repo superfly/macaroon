@@ -170,11 +170,11 @@ func (c *Client) FetchDischargeTokens(ctx context.Context, tokenHeader string) (
 
 	for tpLoc, locTickets := range tickets {
 		for _, ticket := range locTickets {
-			// Do discharges sequentially if we've been given a cookie jar.
+			// Do discharges sequentially if we've been given a cookie jar and a URL callback.
 			// Allowing one discharge to finish before proceeding to the next
 			// increases our chances that a session will save us from user
 			// interaction.
-			if c.http.Jar != nil {
+			if c.http.Jar != nil && c.userURLCallback != nil {
 				if dis, err := c.fetchDischargeToken(ctx, tpLoc, ticket); err != nil {
 					combinedErr = errors.Join(combinedErr, err)
 				} else {
