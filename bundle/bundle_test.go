@@ -418,6 +418,33 @@ func TestAttenuate(t *testing.T) {
 	assert.True(t, hasCav(toks[2]))
 }
 
+func TestAdd3P(t *testing.T) {
+	t.Parallel()
+
+	toks := append(macOpts{}.tokens(t), macOpts{}.tokens(t)...)
+	bun, err := ParseBundle(permLoc, toks.String())
+	assert.NoError(t, err)
+
+	cav, err := macaroon.NewCaveat3P(tpKey, tpLoc)
+	assert.NoError(t, err)
+	assert.NoError(t, bun.Attenuate(cav))
+	assert.Zero(t, cav.VerifierKey)
+
+	vk1 := bun.ts[0].(*UnverifiedMacaroon).UnsafeMac.UnsafeCaveats.Caveats[0].(*macaroon.Caveat3P).VerifierKey
+	assert.NotZero(t, vk1)
+
+	vk2 := bun.ts[1].(*UnverifiedMacaroon).UnsafeMac.UnsafeCaveats.Caveats[0].(*macaroon.Caveat3P).VerifierKey
+	assert.NotZero(t, vk2)
+
+	assert.NotEqual(t, vk1, vk2)
+
+	discharger := func(c []macaroon.Caveat) ([]macaroon.Caveat, error) { return nil, nil }
+	assert.NoError(t, bun.Discharge(tpLoc, tpKey, discharger))
+
+	_, err = bun.Verify(context.Background(), WithKey(permKID, permKey, nil))
+	assert.NoError(t, err)
+}
+
 func hasCaveat(c macaroon.Caveat) Predicate {
 	return MacaroonPredicate(func(m Macaroon) bool {
 		if !cavsHasCaveat(m.UnsafeCaveats().Caveats, c) {

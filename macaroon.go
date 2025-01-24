@@ -225,6 +225,11 @@ func (m *Macaroon) Add(caveats ...Caveat) error {
 		}
 
 		if c3p, ok := caveat.(*Caveat3P); ok {
+			// make a copy since we have to modify it. in case the caveat is
+			// added to multiple macaroons
+			c3p := *c3p
+			caveat = &c3p
+
 			// encrypt RN under the tail hmac so we can recover it during verification
 			c3p.VerifierKey = seal(EncryptionKey(m.Tail), c3p.rn)
 
@@ -521,32 +526,12 @@ func (m *Macaroon) BindToParentMacaroon(parent *Macaroon) error {
 // to use to check which caveats. The location is normally a URL. The
 // authentication service has an authentication location URL.
 func (m *Macaroon) Add3P(ka EncryptionKey, loc string, cs ...Caveat) error {
-	if len(ka) != EncryptionKeySize {
-		return fmt.Errorf("bad key size: have %d, need %d", len(ka), EncryptionKeySize)
-	}
-
-	// make a new root hmac key for the 3p discharge macaroon
-	rn := NewSigningKey()
-
-	// make the ticket, which is consumed by the 3p service; then
-	// encode and encrypt it
-	ticket := &wireTicket{
-		DischargeKey: rn,
-		Caveats:      *NewCaveatSet(cs...),
-	}
-
-	ticketBytes, err := encode(ticket)
+	cav, err := NewCaveat3P(ka, loc, cs...)
 	if err != nil {
-		return fmt.Errorf("encoding ticket: %w", err)
+		return err
 	}
 
-	m.Add(&Caveat3P{
-		Location: loc,
-		Ticket:   seal(ka, ticketBytes),
-		rn:       rn,
-	})
-
-	return nil
+	return m.Add(cav)
 }
 
 // AllThirdPartyTickets extracts the encrypted tickets from a token's third party
