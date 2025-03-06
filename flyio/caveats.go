@@ -26,6 +26,7 @@ const (
 	CavAppFeatureSet     = macaroon.CavFlyioAppFeatureSet
 	CavStorageObjects    = macaroon.CavFlyioStorageObjects
 	CavAllowedRoles      = macaroon.CavAllowedRoles
+	CavFlySrc            = macaroon.CavFlyioFlySrc
 )
 
 type FromMachine struct {
@@ -426,4 +427,54 @@ func (c *StorageObjects) Prohibits(a macaroon.Access) error {
 		return fmt.Errorf("%w: access isnt StorageObjectGetter", macaroon.ErrInvalidAccess)
 	}
 	return c.Prefixes.Prohibits(f.GetStorageObject(), f.GetAction(), "storage object")
+}
+
+// FlySrc limits tokens to being used by specific machines, based on the Fly-Src
+// header included in flycast requests.
+type FlySrc struct {
+	Organization string `json:"organization"`
+	App          string `json:"app"`
+	Instance     string `json:"instance"`
+}
+
+func init() { macaroon.RegisterCaveatType(&FlySrc{}) }
+
+func (c *FlySrc) CaveatType() macaroon.CaveatType { return CavFlySrc }
+func (c *FlySrc) Name() string                    { return "FlySrc" }
+
+func (c *FlySrc) Prohibits(a macaroon.Access) error {
+	switch f, isFlyioAccess := a.(SourceMachineGetter); {
+	case c.Instance == "":
+		// ok
+	case !isFlyioAccess:
+		return fmt.Errorf("%w: access isn't SourceMachineGetter", macaroon.ErrInvalidAccess)
+	case f.GetSourceMachine() == nil:
+		return fmt.Errorf("%w: missing SourceMachine", macaroon.ErrInvalidAccess)
+	case c.Instance != *f.GetSourceMachine():
+		return fmt.Errorf("%w source, expected from machine %s, but got %s", macaroon.ErrUnauthorized, c.Instance, *f.GetSourceMachine())
+	}
+
+	switch f, isFlyioAccess := a.(SourceAppGetter); {
+	case c.App == "":
+		// ok
+	case !isFlyioAccess:
+		return fmt.Errorf("%w: access isn't SourceAppGetter", macaroon.ErrInvalidAccess)
+	case f.GetSourceApp() == nil:
+		return fmt.Errorf("%w: missing SourceApp", macaroon.ErrInvalidAccess)
+	case c.App != *f.GetSourceApp():
+		return fmt.Errorf("%w source, expected from app %s, but got %s", macaroon.ErrUnauthorized, c.App, *f.GetSourceApp())
+	}
+
+	switch f, isFlyioAccess := a.(SourceOrganizationGetter); {
+	case c.Organization == "":
+		// ok
+	case !isFlyioAccess:
+		return fmt.Errorf("%w: access isn't SourceOrgGetter", macaroon.ErrInvalidAccess)
+	case f.GetSourceOrganization() == nil:
+		return fmt.Errorf("%w: missing SourceOrg", macaroon.ErrInvalidAccess)
+	case c.Organization != *f.GetSourceOrganization():
+		return fmt.Errorf("%w source, expected from org %s, but got %s", macaroon.ErrUnauthorized, c.Organization, *f.GetSourceOrganization())
+	}
+
+	return nil
 }

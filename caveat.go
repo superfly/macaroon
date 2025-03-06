@@ -44,6 +44,7 @@ const (
 	CavFlyioAppFeatureSet
 	CavFlyioStorageObjects
 	CavAllowedRoles
+	CavFlyioFlySrc
 
 	// allocate internal blocks of size 255 here
 	block255Min    CaveatType = 1 << 16

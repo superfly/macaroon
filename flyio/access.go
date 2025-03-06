@@ -10,19 +10,21 @@ import (
 )
 
 type Access struct {
-	Action         resset.Action  `json:"action,omitempty"`
-	OrgID          *uint64        `json:"orgid,omitempty"`
-	AppID          *uint64        `json:"appid,omitempty"`
-	AppFeature     *string        `json:"app_feature,omitempty"`
-	Feature        *string        `json:"feature,omitempty"`
-	Volume         *string        `json:"volume,omitempty"`
-	Machine        *string        `json:"machine,omitempty"`
-	MachineFeature *string        `json:"machine_feature,omitempty"`
-	Mutation       *string        `json:"mutation,omitempty"`
-	SourceMachine  *string        `json:"sourceMachine,omitempty"`
-	Cluster        *string        `json:"cluster,omitempty"`
-	Command        []string       `json:"command,omitempty"`
-	StorageObject  *resset.Prefix `json:"storage_object,omitempty"`
+	Action             resset.Action  `json:"action,omitempty"`
+	OrgID              *uint64        `json:"orgid,omitempty"`
+	AppID              *uint64        `json:"appid,omitempty"`
+	AppFeature         *string        `json:"app_feature,omitempty"`
+	Feature            *string        `json:"feature,omitempty"`
+	Volume             *string        `json:"volume,omitempty"`
+	Machine            *string        `json:"machine,omitempty"`
+	MachineFeature     *string        `json:"machine_feature,omitempty"`
+	Mutation           *string        `json:"mutation,omitempty"`
+	SourceMachine      *string        `json:"sourceMachine,omitempty"`
+	SourceApp          *string        `json:"sourceApp,omitempty"`
+	SourceOrganization *string        `json:"sourceOrganization,omitempty"`
+	Cluster            *string        `json:"cluster,omitempty"`
+	Command            []string       `json:"command,omitempty"`
+	StorageObject      *resset.Prefix `json:"storage_object,omitempty"`
 }
 
 var (
@@ -282,6 +284,30 @@ var _ SourceMachineGetter = (*Access)(nil)
 
 // GetSourceMachine implements SourceMachineGetter.
 func (a *Access) GetSourceMachine() *string { return a.SourceMachine }
+
+// SourceAppGetter is an interface allowing other packages to implement Accesses
+// that work with Caveats defined in this package.
+type SourceAppGetter interface {
+	macaroon.Access
+	GetSourceApp() *string
+}
+
+var _ SourceAppGetter = (*Access)(nil)
+
+// GetSourceApp implements SourceAppGetter.
+func (a *Access) GetSourceApp() *string { return a.SourceApp }
+
+// SourceOrganizationGetter is an interface allowing other packages to implement
+// Accesses that work with Caveats defined in this package.
+type SourceOrganizationGetter interface {
+	macaroon.Access
+	GetSourceOrganization() *string
+}
+
+var _ SourceOrganizationGetter = (*Access)(nil)
+
+// GetSourceOrganization implements SourceOrganizationGetter.
+func (a *Access) GetSourceOrganization() *string { return a.SourceOrganization }
 
 // ClusterGetter is an interface allowing other packages to implement Accesses
 // that work with Caveats defined in this package.
