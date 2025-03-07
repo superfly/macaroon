@@ -137,6 +137,7 @@ var caveats = macaroon.NewCaveatSet(
 	&flyio.IsMember{},
 	&flyio.Organization{ID: 123, Mask: resset.ActionAll},
 	&flyio.Mutations{Mutations: []string{"foo"}},
+	&flyio.FlySrc{"foo", "bar", "baz"},
 )
 
 const (
