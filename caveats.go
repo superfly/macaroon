@@ -1,6 +1,7 @@
 package macaroon
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -126,8 +127,17 @@ func (c UnregisteredCaveat) MarshalMsgpack() ([]byte, error) {
 }
 
 func (c *UnregisteredCaveat) UnmarshalMsgpack(data []byte) error {
+	dec := msgpack.GetDecoder()
+	defer msgpack.PutDecoder(dec)
+
+	dec.Reset(bytes.NewReader(data))
+	dec.SetMapDecoder(func(d *msgpack.Decoder) (interface{}, error) {
+		return d.DecodeUntypedMap()
+	})
+
 	c.RawMsgpack = data
-	return msgpack.Unmarshal(data, &c.Body)
+
+	return dec.Decode(&c.Body)
 }
 
 func (c UnregisteredCaveat) MarshalJSON() ([]byte, error) {
