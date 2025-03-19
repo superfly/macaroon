@@ -146,8 +146,8 @@ func TestSimple(t *testing.T) {
 }
 
 type myUnregistered struct {
-	Bar map[string]string `json:"bar"`
-	Foo int               `json:"foo"`
+	Bar map[int]string `json:"bar"`
+	Foo int            `json:"foo"`
 }
 
 func (c *myUnregistered) CaveatType() CaveatType   { return cavMyUnregistered }
@@ -156,7 +156,7 @@ func (c *myUnregistered) Prohibits(f Access) error { return nil }
 
 func TestUnregisteredCaveatJSON(t *testing.T) {
 	RegisterCaveatType(&myUnregistered{})
-	c := &myUnregistered{Foo: 1, Bar: map[string]string{"a": "b"}}
+	c := &myUnregistered{Foo: 1, Bar: map[int]string{1: "b"}}
 	cs := NewCaveatSet(c)
 	b, err := json.Marshal(cs)
 	assert.NoError(t, err)
@@ -174,7 +174,7 @@ func TestUnregisteredCaveatJSON(t *testing.T) {
 	assert.Equal(t,
 		any(map[string]any{
 			"bar": map[string]any{
-				"a": "b",
+				"1": "b",
 			},
 			"foo": float64(1),
 		}),
@@ -199,7 +199,7 @@ func TestUnregisteredCaveatJSON(t *testing.T) {
 
 func TestUnregisteredCaveatMsgpack(t *testing.T) {
 	RegisterCaveatType(&myUnregistered{})
-	c := &myUnregistered{Foo: 1, Bar: map[string]string{"a": "b"}}
+	c := &myUnregistered{Foo: 1, Bar: map[int]string{1: "b"}}
 	cs := NewCaveatSet(c)
 	b, err := cs.MarshalMsgpack()
 	assert.NoError(t, err)
@@ -215,8 +215,8 @@ func TestUnregisteredCaveatMsgpack(t *testing.T) {
 
 	assert.Equal(t,
 		any([]any{
-			map[string]any{
-				"a": "b",
+			map[any]any{
+				int8(1): "b",
 			},
 			int8(1),
 		}),
