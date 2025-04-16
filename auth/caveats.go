@@ -197,14 +197,6 @@ func GetMaxValidity(cs *macaroon.CaveatSet) (time.Duration, bool) {
 	return max, max != time.Duration(math.MaxInt64)
 }
 
-type FlyioUserID uint64
-
-func init()                                              { macaroon.RegisterCaveatType(new(FlyioUserID)) }
-func (c *FlyioUserID) CaveatType() macaroon.CaveatType   { return AttestationFlyioUserID }
-func (c *FlyioUserID) Name() string                      { return "FlyioUserID" }
-func (c *FlyioUserID) Prohibits(a macaroon.Access) error { return macaroon.ErrBadCaveat }
-func (c *FlyioUserID) IsAttestation() bool               { return true }
-
 type GitHubUserID uint64
 
 func init()                                               { macaroon.RegisterCaveatType(new(GitHubUserID)) }

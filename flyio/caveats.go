@@ -11,22 +11,23 @@ import (
 )
 
 const (
-	CavOrganization      = macaroon.CavFlyioOrganization
-	CavVolumes           = macaroon.CavFlyioVolumes
-	CavApps              = macaroon.CavFlyioApps
-	CavFeatureSet        = macaroon.CavFlyioFeatureSet
-	CavMutations         = macaroon.CavFlyioMutations
-	CavMachines          = macaroon.CavFlyioMachines
-	CavDeprecatedIsUser  = macaroon.CavFlyioDeprecatedIsUser
-	CavMachineFeatureSet = macaroon.CavFlyioMachineFeatureSet
-	CavFromMachineSource = macaroon.CavFlyioFromMachineSource
-	CavClusters          = macaroon.CavFlyioClusters
-	CavIsMember          = macaroon.CavFlyioIsMember
-	CavCommands          = macaroon.CavFlyioCommands
-	CavAppFeatureSet     = macaroon.CavFlyioAppFeatureSet
-	CavStorageObjects    = macaroon.CavFlyioStorageObjects
-	CavAllowedRoles      = macaroon.CavAllowedRoles
-	CavFlySrc            = macaroon.CavFlyioFlySrc
+	CavOrganization        = macaroon.CavFlyioOrganization
+	CavVolumes             = macaroon.CavFlyioVolumes
+	CavApps                = macaroon.CavFlyioApps
+	CavFeatureSet          = macaroon.CavFlyioFeatureSet
+	CavMutations           = macaroon.CavFlyioMutations
+	CavMachines            = macaroon.CavFlyioMachines
+	CavDeprecatedIsUser    = macaroon.CavFlyioDeprecatedIsUser
+	CavMachineFeatureSet   = macaroon.CavFlyioMachineFeatureSet
+	CavFromMachineSource   = macaroon.CavFlyioFromMachineSource
+	CavClusters            = macaroon.CavFlyioClusters
+	CavIsMember            = macaroon.CavFlyioIsMember
+	CavCommands            = macaroon.CavFlyioCommands
+	CavAppFeatureSet       = macaroon.CavFlyioAppFeatureSet
+	CavStorageObjects      = macaroon.CavFlyioStorageObjects
+	CavAllowedRoles        = macaroon.CavAllowedRoles
+	CavFlySrc              = macaroon.CavFlyioFlySrc
+	AttestationFlyioUserID = macaroon.AttestationAuthFlyioUserID
 )
 
 type FromMachine struct {
@@ -209,7 +210,7 @@ func (c *Mutations) Prohibits(a macaroon.Access) error {
 	return nil
 }
 
-// deprecated in favor of auth.FlyioUserID
+// deprecated in favor of FlyioUserID
 type DeprecatedIsUser struct {
 	ID uint64 `json:"uint64"`
 }
@@ -222,6 +223,14 @@ func (c *DeprecatedIsUser) Prohibits(a macaroon.Access) error {
 	// IsUser is mostyly metadata and plays no role in access validation.
 	return nil
 }
+
+type FlyioUserID uint64
+
+func init()                                              { macaroon.RegisterCaveatType(new(FlyioUserID)) }
+func (c *FlyioUserID) CaveatType() macaroon.CaveatType   { return AttestationFlyioUserID }
+func (c *FlyioUserID) Name() string                      { return "FlyioUserID" }
+func (c *FlyioUserID) Prohibits(a macaroon.Access) error { return macaroon.ErrBadCaveat }
+func (c *FlyioUserID) IsAttestation() bool               { return true }
 
 // Clusters is a set of Cluster caveats, with their RWX access levels. Clusters
 // belong to the "litefs-cloud" org-feature.

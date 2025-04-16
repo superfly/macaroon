@@ -7,6 +7,7 @@ import (
 
 	"github.com/alecthomas/assert/v2"
 	"github.com/superfly/macaroon"
+	"github.com/superfly/macaroon/flyio"
 )
 
 func TestCaveatSerialization(t *testing.T) {
@@ -15,7 +16,7 @@ func TestCaveatSerialization(t *testing.T) {
 		RequireOrganization(123),
 		RequireGoogleHD("123"),
 		RequireGitHubOrg(123),
-		ptr(FlyioUserID(123)),
+		ptr(flyio.FlyioUserID(123)),
 		ptr(GitHubUserID(123)),
 		(*GoogleUserID)(new(big.Int).SetBytes([]byte{
 			0xDE, 0xAD, 0xBE, 0xEF,

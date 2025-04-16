@@ -6,7 +6,6 @@ import (
 
 	"github.com/alecthomas/assert/v2"
 	"github.com/superfly/macaroon"
-	"github.com/superfly/macaroon/auth"
 	"github.com/superfly/macaroon/resset"
 )
 
@@ -287,31 +286,31 @@ func TestDangerousUserID(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 123, id)
 
-	id, err = DangerousUserID(macaroon.NewCaveatSet(ptr(auth.FlyioUserID(123))))
+	id, err = DangerousUserID(macaroon.NewCaveatSet(ptr(FlyioUserID(123))))
 	assert.NoError(t, err)
 	assert.Equal(t, 123, id)
 
-	id, err = DangerousUserID(macaroon.NewCaveatSet(ptr(auth.FlyioUserID(123)), ptr(auth.FlyioUserID(123))))
+	id, err = DangerousUserID(macaroon.NewCaveatSet(ptr(FlyioUserID(123)), ptr(FlyioUserID(123))))
 	assert.NoError(t, err)
 	assert.Equal(t, 123, id)
 
-	id, err = DangerousUserID(macaroon.NewCaveatSet(&DeprecatedIsUser{ID: 123}, ptr(auth.FlyioUserID(123))))
+	id, err = DangerousUserID(macaroon.NewCaveatSet(&DeprecatedIsUser{ID: 123}, ptr(FlyioUserID(123))))
 	assert.NoError(t, err)
 	assert.Equal(t, 123, id)
 
-	id, err = DangerousUserID(macaroon.NewCaveatSet(ptr(auth.FlyioUserID(123)), &DeprecatedIsUser{ID: 123}))
+	id, err = DangerousUserID(macaroon.NewCaveatSet(ptr(FlyioUserID(123)), &DeprecatedIsUser{ID: 123}))
 	assert.NoError(t, err)
 	assert.Equal(t, 123, id)
 
 	_, err = DangerousUserID(macaroon.NewCaveatSet(&DeprecatedIsUser{ID: 123}, &DeprecatedIsUser{ID: 234}))
 	assert.Error(t, err)
 
-	_, err = DangerousUserID(macaroon.NewCaveatSet(ptr(auth.FlyioUserID(123)), ptr(auth.FlyioUserID(234))))
+	_, err = DangerousUserID(macaroon.NewCaveatSet(ptr(FlyioUserID(123)), ptr(FlyioUserID(234))))
 	assert.Error(t, err)
 
-	_, err = DangerousUserID(macaroon.NewCaveatSet(&DeprecatedIsUser{ID: 123}, ptr(auth.FlyioUserID(234))))
+	_, err = DangerousUserID(macaroon.NewCaveatSet(&DeprecatedIsUser{ID: 123}, ptr(FlyioUserID(234))))
 	assert.Error(t, err)
 
-	_, err = DangerousUserID(macaroon.NewCaveatSet(ptr(auth.FlyioUserID(234)), &DeprecatedIsUser{ID: 123}))
+	_, err = DangerousUserID(macaroon.NewCaveatSet(ptr(FlyioUserID(234)), &DeprecatedIsUser{ID: 123}))
 	assert.Error(t, err)
 }

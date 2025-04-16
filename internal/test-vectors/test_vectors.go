@@ -127,7 +127,7 @@ var caveats = macaroon.NewCaveatSet(
 	auth.RequireOrganization(123),
 	auth.RequireGoogleHD("123"),
 	auth.RequireGitHubOrg(123),
-	ptr(auth.FlyioUserID(123)),
+	ptr(flyio.FlyioUserID(123)),
 	ptr(auth.GitHubUserID(123)),
 	(*auth.GoogleUserID)(new(big.Int).SetBytes([]byte{
 		0xDE, 0xAD, 0xBE, 0xEF,

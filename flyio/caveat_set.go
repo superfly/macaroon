@@ -7,7 +7,6 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/superfly/macaroon"
-	"github.com/superfly/macaroon/auth"
 	"github.com/superfly/macaroon/resset"
 	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/maps"
@@ -187,7 +186,7 @@ func DangerousUserID(cs *macaroon.CaveatSet) (uint64, error) {
 		}
 	}
 
-	for _, cav := range macaroon.GetCaveats[*auth.FlyioUserID](cs) {
+	for _, cav := range macaroon.GetCaveats[*FlyioUserID](cs) {
 		switch cavID := *(*uint64)(cav); {
 		case uid == nil:
 			uid = &cavID
