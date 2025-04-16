@@ -23,7 +23,7 @@ const (
 	CavFlyioMachines
 	CavAuthConfineUser
 	CavAuthConfineOrganization
-	CavFlyioIsUser
+	CavFlyioDeprecatedIsUser
 	Cav3P
 	CavBindToParentToken
 	CavIfPresent

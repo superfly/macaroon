@@ -17,7 +17,7 @@ const (
 	CavFeatureSet        = macaroon.CavFlyioFeatureSet
 	CavMutations         = macaroon.CavFlyioMutations
 	CavMachines          = macaroon.CavFlyioMachines
-	CavIsUser            = macaroon.CavFlyioIsUser
+	CavDeprecatedIsUser  = macaroon.CavFlyioDeprecatedIsUser
 	CavMachineFeatureSet = macaroon.CavFlyioMachineFeatureSet
 	CavFromMachineSource = macaroon.CavFlyioFromMachineSource
 	CavClusters          = macaroon.CavFlyioClusters
@@ -210,15 +210,15 @@ func (c *Mutations) Prohibits(a macaroon.Access) error {
 }
 
 // deprecated in favor of auth.FlyioUserID
-type IsUser struct {
+type DeprecatedIsUser struct {
 	ID uint64 `json:"uint64"`
 }
 
-func init()                                       { macaroon.RegisterCaveatType(&IsUser{}) }
-func (c *IsUser) CaveatType() macaroon.CaveatType { return CavIsUser }
-func (c *IsUser) Name() string                    { return "IsUser" }
+func init()                                                 { macaroon.RegisterCaveatType(&DeprecatedIsUser{}) }
+func (c *DeprecatedIsUser) CaveatType() macaroon.CaveatType { return CavDeprecatedIsUser }
+func (c *DeprecatedIsUser) Name() string                    { return "IsUser" }
 
-func (c *IsUser) Prohibits(a macaroon.Access) error {
+func (c *DeprecatedIsUser) Prohibits(a macaroon.Access) error {
 	// IsUser is mostyly metadata and plays no role in access validation.
 	return nil
 }

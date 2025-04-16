@@ -178,7 +178,7 @@ func AppsAllowing(cs *macaroon.CaveatSet, action resset.Action) (uint64, []uint6
 func DangerousUserID(cs *macaroon.CaveatSet) (uint64, error) {
 	var uid *uint64
 
-	for _, cav := range macaroon.GetCaveats[*IsUser](cs) {
+	for _, cav := range macaroon.GetCaveats[*DeprecatedIsUser](cs) {
 		switch {
 		case uid == nil:
 			uid = &cav.ID
