@@ -3,6 +3,7 @@ package auth
 import (
 	"time"
 
+	"github.com/superfly/macaroon/flyio"
 	"golang.org/x/exp/maps"
 )
 
@@ -20,8 +21,8 @@ func (a *DischargeRequest) Validate() error { return nil }
 func (a *DischargeRequest) FlyioOrganizationIDs() []uint64 {
 	m := map[uint64]struct{}{}
 	for _, f := range a.Flyio {
-		for _, o := range f.OrganizationIDs {
-			m[o] = struct{}{}
+		for _, om := range f.Memberships {
+			m[om.OrganizationID] = struct{}{}
 		}
 	}
 
@@ -58,8 +59,13 @@ func (a *DischargeRequest) GitHubOrgIDs() []uint64 {
 }
 
 type FlyioAuth struct {
-	UserID          uint64
-	OrganizationIDs []uint64
+	UserID      uint64
+	Memberships []*FlyioMembership
+}
+
+type FlyioMembership struct {
+	OrganizationID uint64
+	Role           flyio.Role
 }
 
 type GoogleAuth struct {
