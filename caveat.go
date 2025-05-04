@@ -50,6 +50,8 @@ const (
 	block255Min    CaveatType = 1 << 16
 	BlockPetsemMin            = block255Min
 	BlockPetsemMax            = BlockPetsemMin + 0xff
+	BlockFlydMin              = BlockPetsemMax + 1
+	BlockFlydMax              = BlockFlydMin + 0xff
 	block255Max    CaveatType = 1<<17 - 1
 
 	// Globally-recognized user-registerable caveat types may be requested via
