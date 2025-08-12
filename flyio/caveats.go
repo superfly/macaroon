@@ -27,6 +27,7 @@ const (
 	CavStorageObjects    = macaroon.CavFlyioStorageObjects
 	CavAllowedRoles      = macaroon.CavAllowedRoles
 	CavFlySrc            = macaroon.CavFlyioFlySrc
+	CavMachineFeatureID  = macaroon.CavFlyioMachineFeatureID
 )
 
 type FromMachine struct {
@@ -477,4 +478,41 @@ func (c *FlySrc) Prohibits(a macaroon.Access) error {
 	}
 
 	return nil
+}
+
+// MachineFeatureID restricts some machine features to be accessed from a specific machine ID.
+// It rejects a request only if the access is for the machine ID, and if the access machine ID does not match.
+type MachineFeatureID struct {
+	MachineID string   `json:"machine_id"`
+	Features  []string `json:"features"`
+}
+
+func init()                                                 { macaroon.RegisterCaveatType(&MachineFeatureID{}) }
+func (c *MachineFeatureID) CaveatType() macaroon.CaveatType { return CavMachineFeatureID }
+func (c *MachineFeatureID) Name() string                    { return "MachineFeatureID" }
+
+func (c *MachineFeatureID) Prohibits(a macaroon.Access) error {
+	f, isFlyioAccess := a.(MachineFeatureGetter)
+	switch {
+	case !isFlyioAccess || f.GetMachineFeature() == nil:
+		// If the access doesnt have a machine feature, it is allowed.
+		return nil
+	case !slices.Contains(c.Features, *f.GetMachineFeature()):
+		// If it has a machine feature that is not controlled by the caveat, it is allowed.
+		return nil
+	}
+
+	// If this feature is controlled by the caveat, then the access must have
+	// a machine ID which must match the caveat's machine ID.
+	mg, isFlyioAccess := a.(MachineGetter)
+	switch {
+	case !isFlyioAccess:
+		return fmt.Errorf("%w: access isnt MachineFeatureGetter", macaroon.ErrInvalidAccess)
+	case mg.GetMachine() == nil:
+		return fmt.Errorf("%w machine", resset.ErrResourceUnspecified)
+	case c.MachineID != *mg.GetMachine():
+		return fmt.Errorf("%w machine %s, only %s", resset.ErrUnauthorizedForResource, *mg.GetMachine(), c.MachineID)
+	default:
+		return nil
+	}
 }

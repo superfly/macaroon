@@ -24,6 +24,7 @@ func TestCaveatSerialization(t *testing.T) {
 		&IsMember{},
 		ptr(AllowedRoles(RoleAdmin)),
 		&Commands{Command{[]string{"123"}, true}},
+		&MachineFeatureID{"e7843624c496e8", []string{"self-serve"}},
 	)
 
 	b, err := json.Marshal(cs)
@@ -270,4 +271,63 @@ func TestCommands(t *testing.T) {
 		Machine: ptr("machine"),
 		Action:  resset.ActionWrite,
 	}, resset.ErrUnauthorizedForAction)
+}
+
+func TestFeaturesID(t *testing.T) {
+	yes := func(cs *macaroon.CaveatSet, access *Access) {
+		t.Helper()
+		assert.NoError(t, cs.Validate(access))
+	}
+
+	no := func(cs *macaroon.CaveatSet, access *Access, target error) {
+		t.Helper()
+		err := cs.Validate(access)
+		assert.Error(t, err)
+		assert.IsError(t, err, target)
+	}
+
+	cs := macaroon.NewCaveatSet(&MachineFeatureID{
+		MachineID: "goodmach",
+		Features: []string{
+			"controlled-feature", "other-controlled-feature",
+		},
+	})
+
+	// No machine feature.
+	yes(cs, &Access{
+		OrgID: uptr(1),
+		AppID: uptr(1),
+	})
+
+	// Machine feature not controlled by the caveat.
+	yes(cs, &Access{
+		OrgID:          uptr(1),
+		AppID:          uptr(1),
+		MachineFeature: ptr("uncontrolled-feature"),
+		Machine:        ptr("anymach"),
+	})
+
+	// Machine feature is controlled, and machine ID matches.
+	yes(cs, &Access{
+		OrgID:          uptr(1),
+		AppID:          uptr(1),
+		MachineFeature: ptr("controlled-feature"),
+		Machine:        ptr("goodmach"),
+	})
+
+	// Machine feature is controlled, and machine ID matches.
+	yes(cs, &Access{
+		OrgID:          uptr(1),
+		AppID:          uptr(1),
+		MachineFeature: ptr("other-controlled-feature"),
+		Machine:        ptr("goodmach"),
+	})
+
+	// Machine feature is controlled, and machine ID does not match.
+	no(cs, &Access{
+		OrgID:          uptr(1),
+		AppID:          uptr(1),
+		MachineFeature: ptr("controlled-feature"),
+		Machine:        ptr("badmach"),
+	}, resset.ErrUnauthorizedForResource)
 }

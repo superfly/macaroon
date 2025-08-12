@@ -252,6 +252,24 @@ access request does not specify the corresponding resource.
   },
 ```
 
+### MachineFeatureID
+
+The MachineFeatureID Caveat restricts which machine IDs can be accessed with specific machine features.
+It has a machine ID and a list of machine features. If the access references any of the specified machine features,
+then the machine ID of the access must match the caveat's machine ID. Otherwise access is allowed.
+
+```
+  {
+    "type": "MachineFeatureID",
+    "body": {
+      "machine_id": "e7843624c496e8",
+      "features": [
+        "self-serve"
+      ]
+    }
+  }
+```
+
 ### IfPresent Caveat
 
 The IfPresent Caveat is a little bit different than other Caveats. It has an "if-then" part
