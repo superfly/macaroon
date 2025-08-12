@@ -481,7 +481,7 @@ func (c *FlySrc) Prohibits(a macaroon.Access) error {
 }
 
 // MachineFeatureID restricts some machine features to be accessed from a specific machine ID.
-// It rejects a request only if the access is for the machine ID, and if the access machine ID does not match.
+// It rejects a request only if the access is for the machine feature, and if the access machine ID does not match.
 type MachineFeatureID struct {
 	MachineID string   `json:"machine_id"`
 	Features  []string `json:"features"`
