@@ -341,8 +341,10 @@ func (m *Macaroon) verify(k SigningKey, dms []*Macaroon, parentTokenBindingIds [
 
 	dmsByTicket := make(map[string][]*Macaroon, len(dms))
 	for _, dm := range dms {
-		skid := string(dm.Nonce.KID)
-		dmsByTicket[skid] = append(dmsByTicket[skid], dm)
+		if m.DischargeMacIsOurs(dm) {
+			skid := string(dm.Nonce.KID)
+			dmsByTicket[skid] = append(dmsByTicket[skid], dm)
+		}
 	}
 
 	curMac := sign(k, m.Nonce.MustEncode())
@@ -534,6 +536,33 @@ func (m *Macaroon) Add3P(ka EncryptionKey, loc string, cs ...Caveat) error {
 	return m.Add(cav)
 }
 
+// DischargeMacIsOurs returns true if the discharge mac
+// is not bound to a parent token, or is bound to this token.
+func (m *Macaroon) DischargeMacIsOurs(dm *Macaroon) bool {
+	// Its not ours if any of the bind-to-parents dont match.
+	for _, c := range dm.UnsafeCaveats.Caveats {
+		switch cav := c.(type) {
+		case *BindToParentToken:
+			bid := digest(m.Tail)[0:bindingIdLength]
+			if !bytes.HasPrefix(bid, *cav) { // why is this a prefix match instead of a full match?
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// dischargeIsOurs returns true if the discharge parses properly
+// and is not bound to a parent token, or is bound to this token.
+// Note: this will inefficiently reparse the discharge each time you call it.
+func (m *Macaroon) DischargeIsOurs(disch []byte) bool {
+	dm, err := Decode(disch)
+	if err != nil {
+		return false
+	}
+	return m.DischargeMacIsOurs(dm)
+}
+
 // AllThirdPartyTickets extracts the encrypted tickets from a token's third party
 // caveats. The return value maps 3p locations to tickets.
 //
@@ -555,7 +584,7 @@ func (m *Macaroon) AllThirdPartyTickets(existingDischarges ...[]byte) map[string
 	dischargeTickets := make(map[string]struct{}, len(existingDischarges))
 
 	for _, ed := range existingDischarges {
-		if n, err := DecodeNonce(ed); err == nil {
+		if n, err := DecodeNonce(ed); err == nil && m.DischargeIsOurs(ed) {
 			dischargeTickets[string(n.KID)] = struct{}{}
 		}
 	}
