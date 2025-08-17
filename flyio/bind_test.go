@@ -164,13 +164,6 @@ func TestBindAfterSplitting(t *testing.T) {
 	_, err = m.Verify(key, [][]byte{dis2}, nil)
 	assert.Contains(t, err.Error(), "discharge bound to different parent token")
 
-	// can verify m and m2 with both discharges
-	_, err = m.Verify(key, [][]byte{dis, dis2}, nil)
-	assert.NoError(t, err)
-
-	_, err = m2.Verify(key, [][]byte{dis, dis2}, nil)
-	assert.NoError(t, err)
-
 	// can verify m and m2 with both discharges as would be done if both m
 	// and m2 and their discharges were passed as a single token bundle.
 	cs, err := m.Verify(key, [][]byte{dis, dis2}, nil)
