@@ -20,7 +20,7 @@ in [MsgPack](https://msgpack.org/index.html), which is a kind of binary JSON. Ma
   this), and all caveats must clear.
   
 * A special kind of "third party" (3P) caveat encodes whether some other,
-  possibly unrelated service needs to authorizes a request. That service needs 
+  possibly unrelated service needs to authorize a request. That service needs 
   to understand Macaroons but doesn't need to be able to talk to Fly.io. 
   Fly.io doesn't need to know about the services. Some simple cryptography
   makes this work.
@@ -409,7 +409,7 @@ inconvenient time. More abstractly, That set forms a bearer token that
 can be used _by anyone_ to take actions in our system, which is often
 not what you want.
 
-To accomodate this, `tkdb` exposes a "Service Token" API to anyone with 
+To accommodate this, `tkdb` exposes a "Service Token" API to anyone with 
 the Service Token Noise keypair. This API:
 
 1. Accepts a bundle of Macaroons
