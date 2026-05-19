@@ -13,6 +13,7 @@ func TestCaveatSerialization(t *testing.T) {
 	cs := macaroon.NewCaveatSet(
 		&Organization{ID: 123, Mask: resset.ActionRead},
 		&Apps{Apps: resset.ResourceSet[uint64, resset.Action]{123: resset.ActionRead}},
+		&AppPrefixes{Prefixes: resset.ResourceSet[resset.Prefix, resset.Action]{"foo-": resset.ActionRead}},
 		&FeatureSet{Features: resset.New(resset.ActionRead, "123")},
 		&Volumes{Volumes: resset.New(resset.ActionRead, "123")},
 		&Machines{Machines: resset.New(resset.ActionRead, "123")},
@@ -270,4 +271,86 @@ func TestCommands(t *testing.T) {
 		Machine: ptr("machine"),
 		Action:  resset.ActionWrite,
 	}, resset.ErrUnauthorizedForAction)
+}
+
+func TestAppPrefixes(t *testing.T) {
+	sptr := func(s string) *string { return &s }
+	yes := func(cs *macaroon.CaveatSet, access *Access) {
+		t.Helper()
+		assert.NoError(t, cs.Validate(access))
+	}
+
+	no := func(cs *macaroon.CaveatSet, access *Access, target error) {
+		t.Helper()
+		err := cs.Validate(access)
+		assert.Error(t, err)
+		assert.IsError(t, err, target)
+	}
+
+	cs := macaroon.NewCaveatSet(&AppPrefixes{
+		Prefixes: resset.ResourceSet[resset.Prefix, resset.Action]{
+			"foo-": resset.ActionRead | resset.ActionWrite,
+			"bar-": resset.ActionRead,
+		},
+	})
+
+	// foo-* has rw.
+	yes(cs, &Access{
+		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		AppName: sptr("foo-123"),
+		Action:  resset.ActionRead,
+	})
+
+	yes(cs, &Access{
+		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		AppName: sptr("foo-123"),
+		Action:  resset.ActionWrite,
+	})
+
+	no(cs, &Access{
+		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		AppName: sptr("foo-123"),
+		Action:  resset.ActionControl,
+	}, resset.ErrUnauthorizedForAction)
+
+	// bar-* has r.
+	yes(cs, &Access{
+		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		AppName: sptr("bar-123"),
+		Action:  resset.ActionRead,
+	})
+
+	no(cs, &Access{
+		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		AppName: sptr("bar-123"),
+		Action:  resset.ActionWrite,
+	}, resset.ErrUnauthorizedForAction)
+
+	// foo* doesn't have access
+	no(cs, &Access{
+		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		AppName: sptr("foo"),
+		Action:  resset.ActionRead,
+	}, resset.ErrUnauthorizedForResource)
+
+	// "" doesn't have access
+	no(cs, &Access{
+		OrgID:   uptr(1),
+		AppID:   uptr(1),
+		AppName: sptr(""),
+		Action:  resset.ActionRead,
+	}, resset.ErrUnauthorizedForResource)
+
+	// unnamed app doesn't have access
+	no(cs, &Access{
+		OrgID:  uptr(1),
+		AppID:  uptr(1),
+		Action: resset.ActionRead,
+	}, resset.ErrResourceUnspecified)
 }
