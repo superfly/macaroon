@@ -197,6 +197,17 @@ access request does not specify the corresponding resource.
 
 ```
   {
+    "type": "AppPrefixes",
+    "body": {
+      "app_prefixes": {
+        "prefix-": "rw"
+      }
+    }
+  },
+```
+
+```
+  {
     "type": "Volumes",
     "body": {
       "volumes": {
