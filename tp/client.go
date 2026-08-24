@@ -295,7 +295,7 @@ pollLoop:
 			bo = c.nextBO(bo)
 
 			select {
-			case <-time.After(bo):
+			case <-time.After(boBeforeDeadline(ctx, bo)):
 				continue pollLoop
 			case <-ctx.Done():
 				return "", ctx.Err()
@@ -335,10 +335,7 @@ func (c *Client) nextBO(lastBO time.Duration) time.Duration {
 	if c.pollBackoffNext != nil {
 		return c.pollBackoffNext(lastBO)
 	}
-	if lastBO == 0 {
-		return time.Second
-	}
-	return 2 * lastBO
+	return defaultBackoff(lastBO)
 }
 
 func (c *Client) openUserInteractiveURL(ctx context.Context, url string) error {
@@ -391,4 +388,51 @@ func defaultBackoff(lastBO time.Duration) (nextBO time.Duration) {
 		return time.Second
 	}
 	return 2 * lastBO
+}
+
+const (
+	// pollDeadlineSlack is how much room we try to leave between the last poll
+	// request and the context's deadline, so the request has time to finish.
+	pollDeadlineSlack = time.Second
+
+	// minPollBO is the shortest interval we'll clamp a backoff down to. If
+	// there isn't room for another poll and this much waiting, we let the
+	// context expire rather than spinning on the third party.
+	minPollBO = 100 * time.Millisecond
+)
+
+// boBeforeDeadline returns how long to actually wait before the next poll.
+//
+// Backoffs grow, deadlines don't. A backoff that has grown past what's left of
+// ctx puts the client to sleep for the remainder of its own budget: it stops
+// asking the third party well before it's out of time, and then reports a
+// timeout for a discharge that may have been ready for most of that window.
+// When the next backoff would sleep through the deadline, wait just long
+// enough that one final poll still lands before it.
+//
+// The returned duration is never longer than bo, and the caller keeps
+// backing off from the unclamped value, so this only ever adds a poll.
+func boBeforeDeadline(ctx context.Context, bo time.Duration) time.Duration {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return bo
+	}
+
+	remaining := time.Until(deadline)
+
+	slack := remaining / 2
+	if slack > pollDeadlineSlack {
+		slack = pollDeadlineSlack
+	}
+
+	switch latest := remaining - slack; {
+	case latest >= bo:
+		// the backoff already lands before the deadline.
+		return bo
+	case latest >= minPollBO:
+		return latest
+	default:
+		// no room left for another poll.
+		return bo
+	}
 }

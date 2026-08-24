@@ -152,6 +152,56 @@ func TestTP(t *testing.T) {
 		assert.Equal(t, []string{"fp-cav", "dis-cav"}, cavs)
 	})
 
+	t.Run("poll response with backoff past deadline", func(t *testing.T) {
+		pollSecret := ""
+		pollSecretSet := make(chan struct{})
+
+		handleInit = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, err := CaveatsFromRequest(r)
+			assert.NoError(t, err)
+
+			pollSecret = tp.RespondPoll(w, r)
+			close(pollSecretSet)
+		})
+
+		hdr := genFP(t, tp, myCaveat("fp-cav"))
+
+		// after the first poll the backoff is far longer than the context
+		// allows for. The client has to notice that and squeeze a final poll in
+		// before the deadline, or it spends the rest of its budget asleep and
+		// never sees a discharge that showed up in the meantime.
+		c := NewClient(firstPartyLocation,
+			WithPollingBackoff(func(last time.Duration) time.Duration {
+				if last == 0 {
+					return 10 * time.Millisecond
+				}
+				return 10 * time.Minute
+			}),
+		)
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		go func() {
+			select {
+			case <-pollSecretSet:
+				select {
+				case <-time.After(200 * time.Millisecond):
+					assert.NoError(t, tp.DischargePoll(context.Background(), pollSecret, myCaveat("dis-cav")))
+				case <-ctx.Done():
+					panic("oh no")
+				}
+			case <-ctx.Done():
+				panic("oh no")
+			}
+		}()
+
+		hdr, err = c.FetchDischargeTokens(ctx, hdr)
+		assert.NoError(t, err)
+		cavs := checkFP(t, hdr)
+		assert.Equal(t, []string{"fp-cav", "dis-cav"}, cavs)
+	})
+
 	t.Run("user interactive response", func(t *testing.T) {
 		userSecret := ""
 
