@@ -2,6 +2,7 @@ package tp
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -200,6 +201,23 @@ func TestTP(t *testing.T) {
 		assert.NoError(t, err)
 		cavs := checkFP(t, hdr)
 		assert.Equal(t, []string{"fp-cav", "dis-cav"}, cavs)
+	})
+
+	t.Run("user interactive response without a callback", func(t *testing.T) {
+		handleInit = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, err := CaveatsFromRequest(r)
+			assert.NoError(t, err)
+
+			tp.RespondUserInteractive(w, r)
+		})
+
+		hdr := genFP(t, tp, myCaveat("fp-cav"))
+
+		// the error comes back joined with whatever the other tickets did, so
+		// this is the check a caller has to be able to make to decide whether
+		// retrying with a callback is worth it.
+		_, err = NewClient(firstPartyLocation).FetchDischargeTokens(context.Background(), hdr)
+		assert.True(t, errors.Is(err, ErrMissingUserURLCallback), "got %v", err)
 	})
 
 	t.Run("user interactive response", func(t *testing.T) {

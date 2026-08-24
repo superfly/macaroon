@@ -17,6 +17,13 @@ import (
 	"github.com/superfly/macaroon/bundle"
 )
 
+// ErrMissingUserURLCallback is returned when a third party asks for the user
+// to be sent to a URL in their browser, but the client has no
+// WithUserURLCallback to send them with. Callers that can fall back to an
+// interactive flow can test for it with errors.Is, including on the joined
+// error FetchDischargeTokens returns for a whole set of tickets.
+var ErrMissingUserURLCallback = errors.New("missing user-url callback")
+
 type ClientOption func(*Client)
 
 // WithHTTP specifies the HTTP client to use for requests to third parties.
@@ -321,7 +328,7 @@ func (c *Client) doUserInteractive(ctx context.Context, ui *jsonUserInteractive)
 		return "", errors.New("bad discharge response")
 	}
 	if c.userURLCallback == nil {
-		return "", errors.New("missing user-url callback")
+		return "", ErrMissingUserURLCallback
 	}
 
 	if err := c.openUserInteractiveURL(ctx, ui.UserURL); err != nil {
