@@ -24,6 +24,7 @@ func TestCaveatSerialization(t *testing.T) {
 		&IsMember{},
 		ptr(AllowedRoles(RoleAdmin)),
 		&Commands{Command{[]string{"123"}, true}},
+		&NetworkNames{NetworkNames: resset.New(resset.ActionRead, "net123")},
 	)
 
 	b, err := json.Marshal(cs)
@@ -270,4 +271,77 @@ func TestCommands(t *testing.T) {
 		Machine: ptr("machine"),
 		Action:  resset.ActionWrite,
 	}, resset.ErrUnauthorizedForAction)
+}
+
+func TestNetworkNames(t *testing.T) {
+	yes := func(cs *macaroon.CaveatSet, access *Access) {
+		t.Helper()
+		assert.NoError(t, cs.Validate(access))
+	}
+
+	no := func(cs *macaroon.CaveatSet, access *Access, target error) {
+		t.Helper()
+		err := cs.Validate(access)
+		assert.Error(t, err)
+		assert.IsError(t, err, target)
+	}
+
+	cs := macaroon.NewCaveatSet(&NetworkNames{
+		NetworkNames: resset.ResourceSet[string, resset.Action]{
+			"net123": resset.ActionRead,
+			"net124": resset.ActionRead,
+		},
+	})
+
+	yes(cs, &Access{
+		OrgID:       uptr(1),
+		AppID:       uptr(1),
+		NetworkName: ptr("net123"),
+	})
+
+	yes(cs, &Access{
+		OrgID:       uptr(1),
+		AppID:       uptr(1),
+		NetworkName: ptr("net124"),
+	})
+
+	no(cs, &Access{
+		OrgID:       uptr(1),
+		AppID:       uptr(1),
+		NetworkName: ptr("net125"),
+	}, resset.ErrUnauthorizedForResource)
+
+	no(cs, &Access{
+		OrgID: uptr(1),
+		AppID: uptr(1),
+	}, resset.ErrResourceUnspecified)
+
+	csIf := macaroon.NewCaveatSet(
+		&resset.IfPresent{
+			Ifs: macaroon.NewCaveatSet(&NetworkNames{
+				NetworkNames: resset.ResourceSet[string, resset.Action]{
+					"net123": resset.ActionRead,
+					"net124": resset.ActionRead,
+				},
+			}),
+			Else: resset.ActionRead,
+		},
+	)
+
+	yes(csIf, &Access{
+		OrgID:       uptr(1),
+		AppID:       uptr(1),
+		NetworkName: ptr("net124"),
+	})
+
+	no(csIf, &Access{
+		OrgID:       uptr(1),
+		AppID:       uptr(1),
+		NetworkName: ptr("net125"),
+	}, resset.ErrUnauthorizedForResource)
+
+	yes(csIf, &Access{
+		OrgID: uptr(1),
+		AppID: uptr(1),
+	})
 }
