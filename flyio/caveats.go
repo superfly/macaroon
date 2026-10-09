@@ -27,6 +27,7 @@ const (
 	CavStorageObjects    = macaroon.CavFlyioStorageObjects
 	CavAllowedRoles      = macaroon.CavAllowedRoles
 	CavFlySrc            = macaroon.CavFlyioFlySrc
+	CavNetworkNames      = macaroon.CavNetworkName
 )
 
 type FromMachine struct {
@@ -477,4 +478,20 @@ func (c *FlySrc) Prohibits(a macaroon.Access) error {
 	}
 
 	return nil
+}
+
+type NetworkNames struct {
+	NetworkNames resset.ResourceSet[string, resset.Action] `json:"network_names"`
+}
+
+func init()                                             { macaroon.RegisterCaveatType(&NetworkNames{}) }
+func (c *NetworkNames) CaveatType() macaroon.CaveatType { return CavNetworkNames }
+func (c *NetworkNames) Name() string                    { return "NetworkNames" }
+
+func (c *NetworkNames) Prohibits(a macaroon.Access) error {
+	f, isFlyioAccess := a.(NetworkNameGetter)
+	if !isFlyioAccess {
+		return fmt.Errorf("%w: access isnt NetworkNameGetter", macaroon.ErrInvalidAccess)
+	}
+	return c.NetworkNames.Prohibits(f.GetNetworkName(), f.GetAction(), "network_name")
 }

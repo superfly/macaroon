@@ -252,6 +252,17 @@ access request does not specify the corresponding resource.
   },
 ```
 
+```
+  {
+    "type": "NetworkNames",
+    "body": {
+      "network_names": {
+        "net123": "r"
+      }
+    }
+  }
+```
+
 ### IfPresent Caveat
 
 The IfPresent Caveat is a little bit different than other Caveats. It has an "if-then" part
