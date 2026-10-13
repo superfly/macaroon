@@ -13,6 +13,7 @@ type Access struct {
 	Action             resset.Action  `json:"action,omitempty"`
 	OrgID              *uint64        `json:"orgid,omitempty"`
 	AppID              *uint64        `json:"appid,omitempty"`
+	AppName            *string        `json:"appname,omitempty"`
 	AppFeature         *string        `json:"app_feature,omitempty"`
 	Feature            *string        `json:"feature,omitempty"`
 	Volume             *string        `json:"volume,omitempty"`
@@ -200,6 +201,18 @@ var _ AppIDGetter = (*Access)(nil)
 
 // GetAppID implements AppIDGetter.
 func (a *Access) GetAppID() *uint64 { return a.AppID }
+
+// AppNameGetter is an interface allowing other packages to implement Accesses
+// that work with Caveats defined in this package.
+type AppNameGetter interface {
+	resset.Access
+	GetAppName() *string
+}
+
+// GetAppName implements AppNameGetter.
+func (a *Access) GetAppName() *string { return a.AppName }
+
+var _ AppNameGetter = (*Access)(nil)
 
 // AppFeatureGetter is an interface allowing other packages to implement
 // Accesses that work with Caveats defined in this package.

@@ -14,6 +14,7 @@ const (
 	CavOrganization      = macaroon.CavFlyioOrganization
 	CavVolumes           = macaroon.CavFlyioVolumes
 	CavApps              = macaroon.CavFlyioApps
+	CavAppPrefixes       = macaroon.CavFlyioAppPrefixes
 	CavFeatureSet        = macaroon.CavFlyioFeatureSet
 	CavMutations         = macaroon.CavFlyioMutations
 	CavMachines          = macaroon.CavFlyioMachines
@@ -104,6 +105,30 @@ func (c *Apps) Prohibits(a macaroon.Access) error {
 		return fmt.Errorf("%w: access isnt AppIDGetter", macaroon.ErrInvalidAccess)
 	}
 	return c.Apps.Prohibits(f.GetAppID(), f.GetAction(), "app")
+}
+
+// AppPrefixes is a set of prefix caveats, with their RWX access levels. A token with this set can be used
+// only with apps that have a name matching the prefix.
+type AppPrefixes struct {
+	Prefixes resset.ResourceSet[resset.Prefix, resset.Action] `json:"app_prefixes"`
+}
+
+func init()                                            { macaroon.RegisterCaveatType(&AppPrefixes{}) }
+func (c *AppPrefixes) CaveatType() macaroon.CaveatType { return CavAppPrefixes }
+func (c *AppPrefixes) Name() string                    { return "AppPrefixes" }
+
+func (c *AppPrefixes) Prohibits(a macaroon.Access) error {
+	f, isFlyioAccess := a.(AppNameGetter)
+	if !isFlyioAccess {
+		return fmt.Errorf("%w: access isnt AppNameGetter", macaroon.ErrInvalidAccess)
+	}
+
+	var prefix *resset.Prefix
+	if name := f.GetAppName(); name != nil {
+		p := resset.Prefix(*name)
+		prefix = &p
+	}
+	return c.Prefixes.Prohibits(prefix, f.GetAction(), "app")
 }
 
 type Volumes struct {

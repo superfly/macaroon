@@ -17,6 +17,7 @@ const (
 	_                               // deprecated
 	CavFlyioVolumes
 	CavFlyioApps
+	CavFlyioAppPrefixes
 	CavValidityWindow
 	CavFlyioFeatureSet
 	CavFlyioMutations
