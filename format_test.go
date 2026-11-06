@@ -1,6 +1,7 @@
 package macaroon
 
 import (
+	"encoding/base64"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
@@ -47,4 +48,27 @@ func TestTokenFormat(t *testing.T) {
 	assert.NoError(t, err)
 
 	t.Logf("%v %v", permissionToken, dischargeTokens)
+}
+
+func TestParseTokenListWhitespace(t *testing.T) {
+	var (
+		tok1 = []byte("first token")
+		tok2 = []byte("second token")
+		enc1 = "fm2_" + base64.StdEncoding.EncodeToString(tok1)
+		enc2 = "fm2_" + base64.StdEncoding.EncodeToString(tok2)
+	)
+
+	for name, hdr := range map[string]string{
+		"comma":               "FlyV1 " + enc1 + "," + enc2,
+		"comma space":         "FlyV1 " + enc1 + ", " + enc2,
+		"space around comma":  "FlyV1 " + enc1 + " , " + enc2,
+		"comma tab":           "FlyV1 " + enc1 + ",\t" + enc2,
+		"trailing whitespace": "FlyV1 " + enc1 + "," + enc2 + " ",
+	} {
+		t.Run(name, func(t *testing.T) {
+			toks, err := Parse(hdr)
+			assert.NoError(t, err)
+			assert.Equal(t, [][]byte{tok1, tok2}, toks)
+		})
+	}
 }
