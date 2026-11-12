@@ -27,6 +27,7 @@ const (
 	CavStorageObjects    = macaroon.CavFlyioStorageObjects
 	CavAllowedRoles      = macaroon.CavAllowedRoles
 	CavFlySrc            = macaroon.CavFlyioFlySrc
+	CavNetworkNames      = macaroon.CavNetworkName
 )
 
 type FromMachine struct {
@@ -477,4 +478,26 @@ func (c *FlySrc) Prohibits(a macaroon.Access) error {
 	}
 
 	return nil
+}
+
+// NetworkNameDefault is the network name to use to perform an access check against the
+// default network, which is sometimes represented as the empty string.
+// Note that this name starts with a colon, which is an invalid name for a network name,
+// avoiding conflicts with network names a customer might choose.
+const NetworkNameDefault = ":default"
+
+type NetworkNames struct {
+	NetworkNames resset.ResourceSet[string, resset.Action] `json:"network_names"`
+}
+
+func init()                                             { macaroon.RegisterCaveatType(&NetworkNames{}) }
+func (c *NetworkNames) CaveatType() macaroon.CaveatType { return CavNetworkNames }
+func (c *NetworkNames) Name() string                    { return "NetworkNames" }
+
+func (c *NetworkNames) Prohibits(a macaroon.Access) error {
+	f, isFlyioAccess := a.(NetworkNameGetter)
+	if !isFlyioAccess {
+		return fmt.Errorf("%w: access isnt NetworkNameGetter", macaroon.ErrInvalidAccess)
+	}
+	return c.NetworkNames.Prohibits(f.GetNetworkName(), f.GetAction(), "network_name")
 }

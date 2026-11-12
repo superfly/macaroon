@@ -25,6 +25,7 @@ type Access struct {
 	Cluster            *string        `json:"cluster,omitempty"`
 	Command            []string       `json:"command,omitempty"`
 	StorageObject      *resset.Prefix `json:"storage_object,omitempty"`
+	NetworkName        *string        `json:"network_name,omitempty"`
 }
 
 var (
@@ -62,6 +63,10 @@ func (f *Access) Validate() error {
 	}
 	if f.StorageObject != nil {
 		orgResources = append(orgResources, "storage-object")
+	}
+	// Note: FeatureWireGuard and NetworkName do not conflict, so we ignore the network name conflict if FeatureWireGuard is enabled.
+	if f.NetworkName != nil && !(f.Feature != nil && *f.Feature == FeatureWireGuard) {
+		orgResources = append(orgResources, "network-name")
 	}
 	if len(orgResources) > 1 {
 		return fmt.Errorf("%w: %s", resset.ErrResourcesMutuallyExclusive, strings.Join(orgResources, ", "))
@@ -344,3 +349,15 @@ var _ StorageObjectGetter = (*Access)(nil)
 
 // GetStorageObject implements StorageObjectGetter.
 func (a *Access) GetStorageObject() *resset.Prefix { return a.StorageObject }
+
+// NetworkNameGetter is an interface allowing other packages to implement Accesses
+// that work with Caveats defined in this package.
+type NetworkNameGetter interface {
+	resset.Access
+	GetNetworkName() *string
+}
+
+var _ NetworkNameGetter = (*Access)(nil)
+
+// GetNetworkName implements NetworkNameGetter.
+func (a *Access) GetNetworkName() *string { return a.NetworkName }
