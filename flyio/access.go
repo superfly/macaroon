@@ -64,6 +64,9 @@ func (f *Access) Validate() error {
 	if f.StorageObject != nil {
 		orgResources = append(orgResources, "storage-object")
 	}
+	if f.NetworkName != nil {
+		orgResources = append(orgResources, "network-name")
+	}
 	if len(orgResources) > 1 {
 		return fmt.Errorf("%w: %s", resset.ErrResourcesMutuallyExclusive, strings.Join(orgResources, ", "))
 	}
@@ -78,9 +81,6 @@ func (f *Access) Validate() error {
 	}
 	if f.AppFeature != nil {
 		appResources = append(appResources, *f.AppFeature)
-	}
-	if f.NetworkName != nil {
-		appResources = append(appResources, "network_name")
 	}
 	if len(appResources) != 0 && f.AppID == nil {
 		return fmt.Errorf("%w app if app-owned resource is specified", resset.ErrResourceUnspecified)

@@ -295,25 +295,21 @@ func TestNetworkNames(t *testing.T) {
 
 	yes(cs, &Access{
 		OrgID:       uptr(1),
-		AppID:       uptr(1),
 		NetworkName: ptr("net123"),
 	})
 
 	yes(cs, &Access{
 		OrgID:       uptr(1),
-		AppID:       uptr(1),
 		NetworkName: ptr("net124"),
 	})
 
 	no(cs, &Access{
 		OrgID:       uptr(1),
-		AppID:       uptr(1),
 		NetworkName: ptr("net125"),
 	}, resset.ErrUnauthorizedForResource)
 
 	no(cs, &Access{
 		OrgID: uptr(1),
-		AppID: uptr(1),
 	}, resset.ErrResourceUnspecified)
 
 	csIf := macaroon.NewCaveatSet(
@@ -330,18 +326,15 @@ func TestNetworkNames(t *testing.T) {
 
 	yes(csIf, &Access{
 		OrgID:       uptr(1),
-		AppID:       uptr(1),
 		NetworkName: ptr("net124"),
 	})
 
 	no(csIf, &Access{
 		OrgID:       uptr(1),
-		AppID:       uptr(1),
 		NetworkName: ptr("net125"),
 	}, resset.ErrUnauthorizedForResource)
 
 	yes(csIf, &Access{
 		OrgID: uptr(1),
-		AppID: uptr(1),
 	})
 }
