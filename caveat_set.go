@@ -130,8 +130,9 @@ func (c *CaveatSet) DecodeMsgpack(dec *msgpack.Decoder) error {
 
 	nCavs := aLen / 2
 
+	// aLen is attacker-controlled, so it must not size the allocation.
 	if c.Caveats == nil {
-		c.Caveats = make([]Caveat, 0, nCavs)
+		c.Caveats = make([]Caveat, 0)
 	}
 
 	for i := 0; i < nCavs; i++ {
