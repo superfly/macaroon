@@ -480,6 +480,12 @@ func (c *FlySrc) Prohibits(a macaroon.Access) error {
 	return nil
 }
 
+// NetworkNameDefault is the network name to use to perform an access check against the
+// default network, which is sometimes represented as the empty string.
+// Note that this name starts with a colon, which is an invalid name for a network name,
+// avoiding conflicts with network names a customer might choose.
+const NetworkNameDefault = ":default"
+
 type NetworkNames struct {
 	NetworkNames resset.ResourceSet[string, resset.Action] `json:"network_names"`
 }
