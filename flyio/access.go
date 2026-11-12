@@ -64,7 +64,8 @@ func (f *Access) Validate() error {
 	if f.StorageObject != nil {
 		orgResources = append(orgResources, "storage-object")
 	}
-	if f.NetworkName != nil {
+	// Note: FeatureWireGuard and NetworkName do not conflict, so we ignore the network name conflict if FeatureWireGuard is enabled.
+	if f.NetworkName != nil && !(f.Feature != nil && *f.Feature == FeatureWireGuard) {
 		orgResources = append(orgResources, "network-name")
 	}
 	if len(orgResources) > 1 {

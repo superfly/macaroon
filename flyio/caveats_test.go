@@ -337,4 +337,11 @@ func TestNetworkNames(t *testing.T) {
 	yes(csIf, &Access{
 		OrgID: uptr(1),
 	})
+
+	// you can access check for wireguard feature and network name at the same time.
+	yes(csIf, &Access{
+		OrgID:       uptr(1),
+		Feature:     ptr(FeatureWireGuard),
+		NetworkName: ptr("net124"),
+	})
 }
