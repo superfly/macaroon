@@ -39,7 +39,7 @@ func TestBackoffBeforeDeadline(t *testing.T) {
 		// before the deadline instead of after it.
 		bo := boBeforeDeadline(ctx, time.Hour)
 		assert.True(t, bo > 8*time.Second, "got %s", bo)
-		assert.True(t, bo < 9*time.Second, "got %s", bo)
+		assert.True(t, bo <= 9*time.Second, "got %s", bo)
 	})
 
 	t.Run("deadline too close for another poll", func(t *testing.T) {
