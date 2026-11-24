@@ -216,7 +216,9 @@ func checkWireValue(dec *msgpack.Decoder, reader *bytes.Reader, depth int) error
 	case msgpcode.IsString(code) || msgpcode.IsBin(code):
 		length, err = dec.DecodeBytesLen()
 	case msgpcode.IsExt(code):
-		_, length, err = dec.DecodeExtHeader()
+		// DecodeMapLen may interpret the extension payload as a map.
+		// Skipping it here would leave those nested lengths unchecked.
+		return errors.New("unsupported msgpack extension")
 	default:
 		return dec.Skip() // Only scalar codes remain.
 	}
