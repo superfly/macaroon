@@ -684,6 +684,15 @@ func TestDecodeNonce(t *testing.T) {
 	assert.Equal(t, m.Nonce, n)
 }
 
+func TestDecodeRejectsTruncatedDeclaredByteLength(t *testing.T) {
+	// A four-field macaroon whose nonce starts with a KID declared as 4 GiB.
+	// The encoded input ends immediately after the length.
+	encoded := []byte{0x94, 0x92, 0xc6, 0xff, 0xff, 0xff, 0xff}
+
+	_, err := Decode(encoded)
+	assert.Error(t, err)
+}
+
 func TestNonceJSON(t *testing.T) {
 	n1 := newNonce([]byte{1, 2, 3}, false)
 	n2 := newNonce([]byte{1, 2, 3}, true)

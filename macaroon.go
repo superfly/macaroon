@@ -93,6 +93,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -174,12 +175,156 @@ func newMacaroon(kid []byte, loc string, key SigningKey, isProof bool) (*Macaroo
 // [Macaroon.Add] and [Macaroon.Encode] does not. That's a Macaroon
 // magic power.
 func Decode(buf []byte) (*Macaroon, error) {
+	// Validate the wire shape before decoding into allocated Go values. The
+	// msgpack decoder otherwise trusts declared string and byte lengths before
+	// discovering that the input is truncated.
+	if _, err := validateMsgpackValue(buf, 0); err != nil {
+		return nil, fmt.Errorf("macaroon decode: %w", err)
+	}
+
 	m := &Macaroon{}
 	if err := msgpack.Unmarshal(buf, m); err != nil {
 		return nil, fmt.Errorf("macaroon decode: %w", err)
 	}
 
 	return m, nil
+}
+
+func validateMsgpackValue(buf []byte, depth int) (int, error) {
+	if depth > 64 || len(buf) == 0 {
+		return 0, errors.New("invalid msgpack value")
+	}
+
+	code := buf[0]
+	buf = buf[1:]
+	used := 1
+
+	consume := func(n uint64) (int, error) {
+		if n > uint64(len(buf)) {
+			return 0, errors.New("truncated msgpack value")
+		}
+		return used + int(n), nil
+	}
+	container := func(items uint64) (int, error) {
+		if items > uint64(len(buf)) {
+			return 0, errors.New("truncated msgpack container")
+		}
+		for range items {
+			n, err := validateMsgpackValue(buf, depth+1)
+			if err != nil {
+				return 0, err
+			}
+			used += n
+			buf = buf[n:]
+		}
+		return used, nil
+	}
+
+	switch {
+	case code <= 0x7f || code >= 0xe0:
+		return used, nil
+	case code >= 0x80 && code <= 0x8f:
+		return container(uint64(code&0x0f) * 2)
+	case code >= 0x90 && code <= 0x9f:
+		return container(uint64(code & 0x0f))
+	case code >= 0xa0 && code <= 0xbf:
+		return consume(uint64(code & 0x1f))
+	}
+
+	switch code {
+	case 0xc0, 0xc2, 0xc3:
+		return used, nil
+	case 0xc4, 0xd9:
+		if len(buf) < 1 {
+			return 0, errors.New("truncated msgpack length")
+		}
+		n := uint64(buf[0])
+		used++
+		buf = buf[1:]
+		return consume(n)
+	case 0xc5, 0xda:
+		if len(buf) < 2 {
+			return 0, errors.New("truncated msgpack length")
+		}
+		n := uint64(binary.BigEndian.Uint16(buf))
+		used += 2
+		buf = buf[2:]
+		return consume(n)
+	case 0xc6, 0xdb:
+		if len(buf) < 4 {
+			return 0, errors.New("truncated msgpack length")
+		}
+		n := uint64(binary.BigEndian.Uint32(buf))
+		used += 4
+		buf = buf[4:]
+		return consume(n)
+	case 0xc7:
+		if len(buf) < 1 {
+			return 0, errors.New("truncated msgpack length")
+		}
+		n := uint64(buf[0]) + 1
+		used++
+		buf = buf[1:]
+		return consume(n)
+	case 0xc8:
+		if len(buf) < 2 {
+			return 0, errors.New("truncated msgpack length")
+		}
+		n := uint64(binary.BigEndian.Uint16(buf)) + 1
+		used += 2
+		buf = buf[2:]
+		return consume(n)
+	case 0xc9:
+		if len(buf) < 4 {
+			return 0, errors.New("truncated msgpack length")
+		}
+		n := uint64(binary.BigEndian.Uint32(buf)) + 1
+		used += 4
+		buf = buf[4:]
+		return consume(n)
+	case 0xca, 0xce, 0xd2:
+		return consume(4)
+	case 0xcb, 0xcf, 0xd3:
+		return consume(8)
+	case 0xcc, 0xd0:
+		return consume(1)
+	case 0xcd, 0xd1:
+		return consume(2)
+	case 0xd4:
+		return consume(2)
+	case 0xd5:
+		return consume(3)
+	case 0xd6:
+		return consume(5)
+	case 0xd7:
+		return consume(9)
+	case 0xd8:
+		return consume(17)
+	case 0xdc, 0xde:
+		if len(buf) < 2 {
+			return 0, errors.New("truncated msgpack length")
+		}
+		used += 2
+		items := uint64(binary.BigEndian.Uint16(buf))
+		if code == 0xde {
+			items *= 2
+		}
+		buf = buf[2:]
+		return container(items)
+	case 0xdd, 0xdf:
+		if len(buf) < 4 {
+			return 0, errors.New("truncated msgpack length")
+		}
+		used += 4
+		items := uint64(binary.BigEndian.Uint32(buf))
+		if code == 0xdf {
+			items *= 2
+		}
+		buf = buf[4:]
+		return container(items)
+	default:
+		return 0, fmt.Errorf("unsupported msgpack code 0x%x", code)
+	}
 }
 
 // DecodeNonce parses just the [Nonce] from an encoded [Macaroon].
