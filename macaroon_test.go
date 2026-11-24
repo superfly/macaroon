@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"testing"
 	"time"
@@ -684,13 +685,60 @@ func TestDecodeNonce(t *testing.T) {
 	assert.Equal(t, m.Nonce, n)
 }
 
-func TestDecodeRejectsTruncatedDeclaredByteLength(t *testing.T) {
-	// A four-field macaroon whose nonce starts with a KID declared as 4 GiB.
-	// The encoded input ends immediately after the length.
-	encoded := []byte{0x94, 0x92, 0xc6, 0xff, 0xff, 0xff, 0xff}
+func TestWireLengthFits(t *testing.T) {
+	if wireLengthFits(1<<30, 0) || wireLengthFits(1<<30, 1) || !wireLengthFits(1<<30, 1<<30) {
+		t.Fatal("incorrect remaining-input check for a 1 GiB declaration")
+	}
+}
 
-	_, err := Decode(encoded)
-	assert.Error(t, err)
+func TestWireDepthBoundary(t *testing.T) {
+	for _, depth := range []int{maxWireDepth, maxWireDepth + 1} {
+		var value any = true
+		for range depth {
+			value = []any{value}
+		}
+		buf, err := msgpack.Marshal(value)
+		assert.NoError(t, err)
+		var decoded any
+		err = unmarshalWire(buf, &decoded)
+		if depth == maxWireDepth {
+			assert.NoError(t, err)
+		} else {
+			assert.Error(t, err)
+		}
+	}
+}
+
+func TestDecodeRejectsTruncatedDeclaredByteLength(t *testing.T) {
+	key := bytes.Repeat([]byte("k"), 32<<10)
+	m, err := New(key, "test", NewSigningKey())
+	assert.NoError(t, err)
+	encoded, err := m.Encode()
+	assert.NoError(t, err)
+
+	// Stop inside the nonce. Both entry points must reject the incomplete value.
+	offset := bytes.Index(encoded, key)
+	if offset < 0 {
+		t.Fatal("encoded nonce missing key")
+	}
+	prefix := encoded[:offset+1]
+	_, err = Decode(prefix)
+	assert.True(t, errors.Is(err, io.ErrUnexpectedEOF))
+	_, err = DecodeNonce(prefix)
+	assert.True(t, errors.Is(err, io.ErrUnexpectedEOF))
+
+	alloc := testing.Benchmark(func(b *testing.B) {
+		for b.Loop() {
+			_, _ = Decode(prefix)
+		}
+	})
+	if alloc.AllocedBytesPerOp() >= int64(len(key)) {
+		t.Fatalf("truncated decode allocated %d bytes/op", alloc.AllocedBytesPerOp())
+	}
+
+	// Nonce-only callers can still read a complete nonce without the tail.
+	_, err = DecodeNonce(encoded[:len(encoded)-1])
+	assert.NoError(t, err)
 }
 
 func TestNonceJSON(t *testing.T) {

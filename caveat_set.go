@@ -29,7 +29,7 @@ func NewCaveatSet(caveats ...Caveat) *CaveatSet {
 func DecodeCaveats(buf []byte) (*CaveatSet, error) {
 	cavs := new(CaveatSet)
 
-	if err := msgpack.Unmarshal(buf, cavs); err != nil {
+	if err := unmarshalWire(buf, cavs); err != nil {
 		return nil, err
 	}
 

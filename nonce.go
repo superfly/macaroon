@@ -128,7 +128,7 @@ func (c *Nonce) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	return msgpack.Unmarshal(raw, c)
+	return unmarshalWire(raw, c)
 }
 
 // newNonce creates a nonce from a key-id, where the key-id
