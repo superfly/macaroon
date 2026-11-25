@@ -2,8 +2,6 @@ package macaroon
 
 import (
 	"fmt"
-
-	msgpack "github.com/vmihailenco/msgpack/v5"
 )
 
 // wireTicket is the magic blob callers pass to 3rd-party services to obtain discharge
@@ -54,7 +52,7 @@ func dischargeTicket(ka EncryptionKey, location string, ticket []byte, issueProo
 	}
 
 	tWire := &wireTicket{}
-	if err = msgpack.Unmarshal(tRaw, tWire); err != nil {
+	if err = unmarshalWire(tRaw, tWire); err != nil {
 		return nil, nil, fmt.Errorf("recover for discharge: ticket decode: %w", err)
 	}
 

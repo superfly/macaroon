@@ -96,9 +96,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	msgpack "github.com/vmihailenco/msgpack/v5"
+	"github.com/vmihailenco/msgpack/v5/msgpcode"
 )
 
 // Macaroon is the fully-functioning internal representation of a
@@ -175,18 +177,83 @@ func newMacaroon(kid []byte, loc string, key SigningKey, isProof bool) (*Macaroo
 // magic power.
 func Decode(buf []byte) (*Macaroon, error) {
 	m := &Macaroon{}
-	if err := msgpack.Unmarshal(buf, m); err != nil {
+	if err := unmarshalWire(buf, m); err != nil {
 		return nil, fmt.Errorf("macaroon decode: %w", err)
 	}
-
 	return m, nil
+}
+
+func unmarshalWire(buf []byte, dst any) error {
+	reader := bytes.NewReader(buf)
+	if err := checkWireValue(msgpack.NewDecoder(reader), reader, 0); err != nil {
+		return err
+	}
+	return msgpack.Unmarshal(buf, dst)
+}
+
+// Bound recursion in both this walk and the subsequent typed decode.
+const maxWireDepth = 64
+
+// bytes.Reader implements io.ByteScanner, so the decoder consumes it directly.
+func checkWireValue(dec *msgpack.Decoder, reader *bytes.Reader, depth int) error {
+	if depth > maxWireDepth {
+		return errors.New("msgpack nesting too deep")
+	}
+	code, err := dec.PeekCode()
+	if err != nil {
+		return err
+	}
+
+	var length int
+	var childrenPerItem int
+	switch {
+	case msgpcode.IsFixedArray(code) || code == msgpcode.Array16 || code == msgpcode.Array32:
+		length, err = dec.DecodeArrayLen()
+		childrenPerItem = 1
+	case msgpcode.IsFixedMap(code) || code == msgpcode.Map16 || code == msgpcode.Map32:
+		length, err = dec.DecodeMapLen()
+		childrenPerItem = 2
+	case msgpcode.IsString(code) || msgpcode.IsBin(code):
+		length, err = dec.DecodeBytesLen()
+	case msgpcode.IsExt(code):
+		// DecodeMapLen may interpret the extension payload as a map.
+		// Skipping it here would leave those nested lengths unchecked.
+		return errors.New("unsupported msgpack extension")
+	default:
+		return dec.Skip() // Only scalar codes remain.
+	}
+	if err != nil {
+		return err
+	}
+	if !wireLengthFits(length, reader.Len()) {
+		return io.ErrUnexpectedEOF
+	}
+	if childrenPerItem == 0 {
+		_, err = reader.Seek(int64(length), io.SeekCurrent)
+		return err
+	}
+	if length > reader.Len()/childrenPerItem {
+		return io.ErrUnexpectedEOF
+	}
+	for range length * childrenPerItem {
+		if err := checkWireValue(dec, reader, depth+1); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Check the remaining input before seeking or invoking the allocating decoder.
+func wireLengthFits(declared, remaining int) bool {
+	return declared >= 0 && declared <= remaining
 }
 
 // DecodeNonce parses just the [Nonce] from an encoded [Macaroon].
 // You'd want to do this, for instance, to look metadata up by the
 // keyid of the [Macaroon], which is encoded in the [Nonce].
 func DecodeNonce(buf []byte) (nonce Nonce, err error) {
-	dec := msgpack.NewDecoder(bytes.NewReader(buf))
+	reader := bytes.NewReader(buf)
+	dec := msgpack.NewDecoder(reader)
 
 	var n int
 	switch n, err = dec.DecodeArrayLen(); {
@@ -197,7 +264,7 @@ func DecodeNonce(buf []byte) (nonce Nonce, err error) {
 		return
 	}
 
-	err = dec.Decode(&nonce)
+	err = unmarshalWire(buf[len(buf)-reader.Len():], &nonce)
 	return
 }
 
@@ -423,7 +490,7 @@ func (m *Macaroon) verify(k SigningKey, dms []*Macaroon, parentTokenBindingIds [
 				}
 
 				var ticket wireTicket
-				if err = msgpack.Unmarshal(ticketr, &ticket); err != nil {
+				if err = unmarshalWire(ticketr, &ticket); err != nil {
 					dErr = errors.Join(dErr, fmt.Errorf("bad ticket in discharge: %w", err))
 					continue dmLoop
 				}

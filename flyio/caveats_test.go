@@ -1,13 +1,31 @@
 package flyio
 
 import (
+	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/resset"
+	"github.com/vmihailenco/msgpack/v5"
 )
+
+func TestAppsRejectsExtensionWrappedResourceSet(t *testing.T) {
+	var buf bytes.Buffer
+	enc := msgpack.NewEncoder(&buf)
+	assert.NoError(t, enc.EncodeArrayLen(2))
+	assert.NoError(t, enc.EncodeUint(uint64(CavApps)))
+	assert.NoError(t, enc.EncodeArrayLen(1))
+	// A complete extension containing just an empty resource map.
+	assert.NoError(t, enc.EncodeExtHeader(1, 1))
+	assert.NoError(t, enc.EncodeMapLen(0))
+	_, err := macaroon.DecodeCaveats(buf.Bytes())
+	if err == nil || !strings.Contains(err.Error(), "unsupported msgpack extension") {
+		t.Fatalf("expected extension rejection, got %v", err)
+	}
+}
 
 func TestCaveatSerialization(t *testing.T) {
 	cs := macaroon.NewCaveatSet(
