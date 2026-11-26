@@ -24,7 +24,7 @@ func Parse(header string) ([][]byte, error) {
 
 tokLoop:
 	for _, tok := range strToks {
-		pfx, b64, found := strings.Cut(tok, "_")
+		pfx, b64, found := strings.Cut(strings.TrimSpace(tok), "_")
 		if !found {
 			return nil, fmt.Errorf("parse flyv1 token: malformed: %w", ErrUnrecognizedToken)
 		}
